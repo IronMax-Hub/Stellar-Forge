@@ -1,0 +1,5 @@
+# Downloaded reference material stays local: the repository is public and these files are copyrighted.
+# Only the index and the check scripts are tracked.
+documentation/references/*
+!documentation/references/README.md
+!documentation/references/scripts/
