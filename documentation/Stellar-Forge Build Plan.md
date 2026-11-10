@@ -424,6 +424,7 @@ The record also says it assumes a single star. Most massive stars interact with 
 - `result.json` takes `meta.created` from the code's commit time so reruns are byte-identical; `run.json` holds the command, parameters, wall-clock time and machine.
 - The Experiments view is a second tab beside Star Builder.
 - Fixed on the way: a star with no alternative prescription (white dwarf outside Cummings et al.'s range, still on the main sequence, or not predicted) carried an alternative of type `none`, which the rapid remnant map drew as "destroyed"; the alternative now repeats the star's own outcome.
+- Fixed on the way: the full-life map showed 756 of its cells as "track incomplete" although their tracks reach the end of carbon burning (only MIST's core mass is missing, which the remnant needs and the lifetime does not). Of the 9,200 cells, 1,632 remain without a total lifetime because their MIST track stops before a final phase — most at the start of the thermally pulsing AGB (666 cells) or at helium ignition (462), mainly below [Fe/H] −2.
 
 **Effort:** 3–4 days.
 

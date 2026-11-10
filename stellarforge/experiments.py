@@ -18,7 +18,6 @@ import json
 import os
 import platform
 import shutil
-import subprocess
 import sys
 import time
 from datetime import UTC, datetime
@@ -56,7 +55,10 @@ def _cell(mass: float, feh: float) -> dict:
     return {
         "mass": mass, "feh": feh, "provenance": t.provenance, "ending": t.ending,
         "ms_lifetime_yr": age[453] - age[201] if ms else np.nan,
-        "total_lifetime_yr": age[-1] if t.ending in evolution.FINAL_ENDINGS else np.nan,
+        # A track that reaches the end of carbon burning has a known total lifetime even where
+        # MIST leaves a core mass out; only the remnant needs the core masses.
+        "total_lifetime_yr": (age[-1] if t.ending in evolution.FINAL_ENDINGS
+                              or t.ending.startswith(evolution.CARBON_END) else np.nan),
         "zams_teff_k": 10 ** t.values["log_teff_k"][201] if rows >= 202 else np.nan,
         "remnant": r.type, "remnant_mass": np.nan if r.mass_msun is None else r.mass_msun,
         "remnant_provenance": r.provenance, "alt_remnant": r.alternative["type"],
@@ -184,19 +186,22 @@ def remnant_map(p) -> dict:
 def remnant_mass_curves(p) -> dict:
     masses = mass_grid(p["masses"])
     swept = sweep(masses, CURVE_FEHS)
-    rows = [export.build_row(label=f"[Fe/H] {f:+.1f}, {name}", y=f,
-                             values=[c[key] for c in cells],
-                             provenance=[c["remnant_provenance"] for c in cells])
-            for f, cells in zip(CURVE_FEHS, swept)
-            for name, key in (("delayed", "remnant_mass"), ("rapid", "alt_remnant_mass"))]
+
+    def panel(title, key):
+        # One curve per [Fe/H], in the same order (and so the same colours) in both panels
+        rows = [export.build_row(label=f"[Fe/H] {f:+.1f}", y=f, values=[c[key] for c in cells],
+                                 provenance=[c["remnant_provenance"] for c in cells])
+                for f, cells in zip(CURVE_FEHS, swept)]
+        return export.build_panel(
+            title=title, kind="curves", rows=rows, x_values=masses, x_label="Initial mass (M☉)",
+            y_label="Remnant mass (M☉)", value_label="M☉", log_x=True, log_values=True)
+
     return export.build_experiment(
         name="remnant-mass-curves", title="Remnant mass against initial mass",
         summary="Remnant mass under both Fryer et al. 2012 prescriptions at five metallicities; "
                 "gaps are stars with no remnant (destroyed, not yet, or not predicted).",
-        panels=[export.build_panel(
-            title="Remnant mass", kind="curves", rows=rows, x_values=masses,
-            x_label="Initial mass (M☉)", y_label="Remnant mass (M☉)", value_label="M☉",
-            log_x=True, log_values=True)])
+        panels=[panel("Remnant mass, delayed (adopted)", "remnant_mass"),
+                panel("Remnant mass, rapid (alternative)", "alt_remnant_mass")])
 
 
 def kroupa_sample(n: int, seed: int) -> np.ndarray:
@@ -366,13 +371,11 @@ def run(name: str, params: dict, export_web: bool = False) -> Path:
     text = json.dumps(document, separators=(",", ":"), ensure_ascii=False) + "\n"
     (out / "result.json").write_text(text)
     figure(document["experiment"], out / "figure.png")
-    dirty = subprocess.run(["git", "-C", str(ROOT), "status", "--porcelain", "--untracked-files=no"],
-                           capture_output=True, text=True, check=False).stdout.strip() != ""
     (out / "run.json").write_text(json.dumps({
         "command": ["python", "-m", "stellarforge.experiments", *sys.argv[1:]],
         "experiment": name, "parameters": params,
         "git_commit": document["meta"]["generator"]["git_commit"],
-        "uncommitted_changes": dirty, "mist_version": "1.2",
+        "uncommitted_changes": export.code_changed(), "mist_version": "1.2",
         "started": started.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "seconds": round(time.perf_counter() - start, 2), "machine": _machine(),
     }, indent=1) + "\n")

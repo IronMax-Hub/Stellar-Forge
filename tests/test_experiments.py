@@ -74,6 +74,18 @@ def _sweep(fehs):
 
 
 @needs_grid
+def test_total_lifetime_wherever_the_track_ends_finally():
+    # Tracks that reach the end of carbon burning without a MIST core mass still have a lifetime
+    s = _sweep((-3.0, -1.0))
+    for cells in s.values():
+        for c in cells:
+            final = c["ending"] in evolution.FINAL_ENDINGS or c["ending"].startswith(
+                evolution.CARBON_END)
+            assert final == (not np.isnan(c["total_lifetime_yr"])), (c["mass"], c["ending"])
+    assert any(c["ending"] == evolution.NO_CO_CORE for cells in s.values() for c in cells)
+
+
+@needs_grid
 def test_shorter_main_sequence_at_low_metallicity():
     # Below 8 M☉ every star's main sequence is shorter at [Fe/H] -2 than at 0. Above ~8.7 M☉ MIST's
     # rotating stars live up to ~30% longer at low metallicity: rotational mixing is stronger there

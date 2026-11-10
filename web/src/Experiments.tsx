@@ -17,7 +17,8 @@ const WORD_COLOURS: Record<string, string> = {
   "not yet": "#6fae5c", "not predicted": "#555a66", "track incomplete": "#555a66",
   "still on the main sequence": "#6fae5c",
 };
-const CURVE_COLOURS = ["#8fa8ff", "#f0b08a", "#8ad8f0", "#f0d58a", "#c9a0f0", "#9be0a8", "#f08aa8", "#e0e0e0", "#a0c0f0", "#f0c0a0"];
+// Distinct hues, so neighbouring curves are told apart; curve k always takes colour k
+const CURVE_COLOURS = ["#5b8def", "#f28e2b", "#59c27a", "#e15759", "#b07aa1", "#edc948", "#76b7b2", "#ff9da7", "#9c755f", "#bab0ac"];
 // Viridis, as five stops; colours between them are blended linearly
 const SCALE = [[68, 1, 84], [59, 82, 139], [33, 145, 140], [94, 201, 98], [253, 231, 37]];
 
@@ -100,6 +101,24 @@ function share(v: number, lo: number, hi: number, log: boolean): number {
   return log ? Math.log(v / lo) / Math.log(hi / lo) : (v - lo) / (hi - lo || 1);
 }
 
+/** Round tick values inside [lo, hi]: powers of ten (with 2 and 5 when too few) or a 1-2-5 step. */
+function axisTicks(lo: number, hi: number, log: boolean): number[] {
+  const inside = (t: number) => t >= lo * (1 - 1e-9) && t <= hi * (1 + 1e-9);
+  if (log) {
+    const decades = [];
+    for (let e = Math.floor(Math.log10(lo)); e <= Math.ceil(Math.log10(hi)); e++) decades.push(10 ** e);
+    const main = decades.filter(inside);
+    return main.length >= 3 ? main : decades.flatMap((d) => [d, 2 * d, 5 * d]).filter(inside);
+  }
+  const span = hi - lo || 1;
+  const step = [0.1, 0.2, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100].find((s) => span / s <= 6) ?? 10 ** Math.ceil(Math.log10(span));
+  const out = [];
+  for (let t = Math.ceil(lo / step - 1e-9) * step; t <= hi + 1e-9; t += step) out.push(+t.toFixed(6));
+  return out;
+}
+
+const tickText = (t: number) => String(+t.toPrecision(3));
+
 function Heatmap({ panel }: { panel: Panel }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [hover, setHover] = useState<{ row: number; col: number } | null>(null);
@@ -131,18 +150,26 @@ function Heatmap({ panel }: { panel: Panel }) {
     const row = rows.length - 1 - Math.floor(((e.clientY - box.top) / box.height) * rows.length);
     setHover(col >= 0 && col < cols && row >= 0 && row < rows.length ? { row, col } : null);
   };
-  const xTicks = panel.log_x ? [0.1, 1, 10, 100].filter((t) => t >= panel.x_values[0] && t <= panel.x_values[cols - 1]) : [];
+  // Cell k is centred at (k + 0.5) / cols of the width; a tick sits where its value would fall
+  const x0 = panel.x_values[0], x1 = panel.x_values[cols - 1];
+  const xTicks = axisTicks(x0, x1, panel.log_x).map((t) => ({ t, left: (share(t, x0, x1, panel.log_x) * (cols - 1) + 0.5) / cols }));
+  const ys = rows.map((r) => r.y).filter((v): v is number => v !== null);
+  const yTicks = ys.length === rows.length ? axisTicks(Math.min(...ys), Math.max(...ys), false) : [];
 
   return (
     <div className="heatmap">
       <div className="heat-plot">
-        <span className="y-axis">{panel.y_label}: {rows[0].label} (bottom) to {rows[rows.length - 1].label} (top)</span>
+        <span className="y-label">{panel.y_label}</span>
+        <div className="y-ticks">
+          {yTicks.map((t) => {
+            const i = ys.findIndex((v) => Math.abs(v - t) < 1e-6);
+            return i < 0 ? null : <span key={t} style={{ top: `${((rows.length - 1 - i + 0.5) / rows.length) * 100}%` }}>{tickText(t)}</span>;
+          })}
+        </div>
         <canvas ref={ref} width={W} height={H} onMouseMove={pick} onMouseLeave={() => setHover(null)}
           aria-label={`${panel.title}: heatmap of ${panel.value_label} against ${panel.x_label} and ${panel.y_label}`} />
         <div className="x-ticks">
-          {xTicks.map((t) => (
-            <span key={t} style={{ left: `${share(t, panel.x_values[0], panel.x_values[cols - 1], true) * 100}%` }}>{t}</span>
-          ))}
+          {xTicks.map(({ t, left }) => <span key={t} style={{ left: `${left * 100}%` }}>{tickText(t)}</span>)}
         </div>
         <span className="x-axis">{panel.x_label}</span>
       </div>
@@ -174,25 +201,27 @@ function Curves({ panel }: { panel: Panel }) {
   const W = 800, H = 320, PAD = 50;
   const [hover, setHover] = useState<number | null>(null);
   const xs = panel.x_values;
-  const { x, y, paths, yTicks } = useMemo(() => {
+  const { x, y, paths, dots, xTicks, yTicks } = useMemo(() => {
     const finite = panel.rows.flatMap((r) => r.values.filter((v): v is number => v !== null && (!panel.log_values || v > 0)));
     const lo = Math.min(...finite), hi = Math.max(...finite);
     const x = (v: number) => PAD + share(v, xs[0], xs[xs.length - 1], panel.log_x) * (W - PAD - 10);
     const y = (v: number) => 10 + (1 - share(v, lo, hi, panel.log_values)) * (H - PAD - 10);
-    const paths = panel.rows.map((r) => {
-      let d = "";
-      let pen = false;
+    // Each curve splits into runs of points with values; a gap (no value) ends a run. A run of one
+    // point has no line to draw, so it is shown as a dot.
+    const runs = panel.rows.map((r) => {
+      const out: [number, number][][] = [];
+      let run: [number, number][] = [];
       r.values.forEach((v, k) => {
-        if (v === null || (panel.log_values && v <= 0)) { pen = false; return; }   // a gap: no value
-        d += `${pen ? "L" : "M"}${x(xs[k]).toFixed(1)},${y(v).toFixed(1)}`;
-        pen = true;
+        if (v === null || (panel.log_values && v <= 0)) { if (run.length) out.push(run); run = []; return; }
+        run.push([x(xs[k]), y(v)]);
       });
-      return d;
+      if (run.length) out.push(run);
+      return out;
     });
-    const yTicks = panel.log_values
-      ? [0.01, 0.1, 1, 10, 100, 1000].filter((t) => t >= lo && t <= hi)
-      : [0, 0.25, 0.5, 0.75, 1].map((f) => lo + f * (hi - lo));
-    return { x, y, paths, yTicks };
+    const paths = runs.map((rs) => rs.filter((r) => r.length > 1)
+      .map((r) => r.map(([px, py], k) => `${k ? "L" : "M"}${px.toFixed(1)},${py.toFixed(1)}`).join("")).join(""));
+    const dots = runs.map((rs) => rs.filter((r) => r.length === 1).map((r) => r[0]));
+    return { x, y, paths, dots, xTicks: axisTicks(xs[0], xs[xs.length - 1], panel.log_x), yTicks: axisTicks(lo, hi, panel.log_values) };
   }, [panel, xs]);
 
   const pick = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -208,12 +237,12 @@ function Curves({ panel }: { panel: Panel }) {
       <svg viewBox={`0 0 ${W} ${H}`} className="curve-plot" onMouseMove={pick} onMouseLeave={() => setHover(null)}
         role="img" aria-label={`${panel.title}: ${panel.y_label} against ${panel.x_label}`}>
         <rect x={PAD} y={10} width={W - PAD - 10} height={H - PAD - 10} className="frame" />
-        {yTicks.map((t) => <text key={t} x={PAD - 6} y={y(t) + 4} textAnchor="end">{fmt(t)}</text>)}
-        <text x={PAD} y={H - PAD + 16} textAnchor="middle">{fmt(xs[0])}</text>
-        <text x={W - 10} y={H - PAD + 16} textAnchor="end">{fmt(xs[xs.length - 1])}</text>
+        {yTicks.map((t) => <text key={t} x={PAD - 6} y={y(t) + 4} textAnchor="end">{tickText(t)}</text>)}
+        {xTicks.map((t) => <text key={t} x={x(t)} y={H - PAD + 16} textAnchor="middle">{tickText(t)}</text>)}
         <text x={(W + PAD) / 2} y={H - 8} textAnchor="middle">{panel.x_label}</text>
         <text transform={`translate(12 ${(H - PAD) / 2}) rotate(-90)`} textAnchor="middle">{panel.y_label}</text>
-        {paths.map((d, k) => <path key={k} d={d} fill="none" stroke={CURVE_COLOURS[k % CURVE_COLOURS.length]} strokeWidth={1.4} />)}
+        {paths.map((d, k) => <path key={k} d={d} fill="none" stroke={CURVE_COLOURS[k % CURVE_COLOURS.length]} strokeWidth={1.6} />)}
+        {dots.map((ps, k) => ps.map(([px, py]) => <circle key={`${k}-${px}`} cx={px} cy={py} r={2.5} fill={CURVE_COLOURS[k % CURVE_COLOURS.length]} />))}
         {hover !== null && <line x1={x(xs[hover])} x2={x(xs[hover])} y1={10} y2={H - PAD} className="cursor-line" />}
       </svg>
       <ul className="curve-legend">

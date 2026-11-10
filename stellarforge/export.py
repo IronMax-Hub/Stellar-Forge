@@ -20,14 +20,26 @@ _HERE = Path(__file__).parent
 _REFERENCES = {r["key"]: r for r in json.loads((_HERE / "references.json").read_text())}
 
 
-def _git_commit() -> str:
+def code_changed() -> bool:
+    """True when stellarforge/ differs from the HEAD commit (edited or new files)."""
     try:
-        return subprocess.run(
+        return subprocess.run(["git", "-C", str(_HERE), "status", "--porcelain", "--", "."],
+                              capture_output=True, text=True, check=True).stdout.strip() != ""
+    except (OSError, subprocess.CalledProcessError):
+        return True
+
+
+def _git_commit() -> str:
+    """HEAD's short hash, with "+changes" when the physics code differs from it: then that commit
+    alone did not make the result."""
+    try:
+        head = subprocess.run(
             ["git", "-C", str(_HERE), "rev-parse", "--short", "HEAD"],
             capture_output=True, text=True, check=True,
         ).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
+    return head + ("+changes" if code_changed() else "")
 
 
 def git_commit_time() -> str:

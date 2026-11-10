@@ -234,6 +234,14 @@ dd {
   margin: 0;
 }
 
+.experiments p {
+  margin: 0;
+}
+
+.experiments .panel {
+  margin-top: 0.5rem;
+}
+
 .experiments h3 {
   font-weight: 500;
   font-size: 1rem;
@@ -241,7 +249,39 @@ dd {
 }
 
 .heat-plot {
+  display: grid;
+  grid-template-columns: 1.2rem 2.4rem 1fr;
+  grid-template-rows: auto auto auto;
+}
+
+.heat-plot .y-label {
+  grid-column: 1;
+  grid-row: 1;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  text-align: center;
+  font-size: 0.8rem;
+  color: #9a9cab;
+}
+
+.heat-plot .y-ticks {
+  grid-column: 2;
+  grid-row: 1;
   position: relative;
+  font-size: 0.75rem;
+  color: #9a9cab;
+}
+
+.heat-plot .y-ticks span {
+  position: absolute;
+  right: 0.4rem;
+  transform: translateY(-50%);
+}
+
+.heat-plot canvas,
+.heat-plot .x-ticks,
+.heat-plot .x-axis {
+  grid-column: 3;
 }
 
 .heat-plot canvas {
@@ -265,7 +305,6 @@ dd {
 }
 
 .x-axis,
-.y-axis,
 .readout {
   display: block;
   font-size: 0.8rem;

@@ -18,7 +18,7 @@ carry `experiment`. The fixture holds every block.
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `schema_version` | integer | contract version |
-| `generator.name`, `.version`, `.git_commit` | strings | the code that made the file |
+| `generator.name`, `.version`, `.git_commit` | strings | the code that made the file; `.git_commit` ends in `+changes` when `stellarforge/` differed from that commit |
 | `dataset` | string | the published data the numbers came from, with its abundance scale |
 | `models` | object of strings | which prescription produced each kind of result |
 | `inputs` | object of numbers | the run's parameters; names carry units (`mass_msun`), `feh` is [Fe/H] in dex |
