@@ -1,10 +1,23 @@
 # Stellar-Forge Build Plan
 
-Nov 6, 2026 · @Mayukh · revised after source checks and the outside review
+Nov 6, 2026 · @Mayukh · revision 3: consistency fixes before implementation
 
-Stellar-Forge is built in nine phases (0–8), entirely on this machine: Python computes every result from published physics, a TypeScript observatory only displays it, and one shared JSON fixture keeps the two in step. The first visible milestone is the Sun's track on an HR diagram in the browser at the end of Phase 1; your questions on lifetimes, remnants and planets are answered by Phases 3, 5 and 6. Every reference and 50 specific claims were checked against their sources on 6 November 2026 — see [Source checks](Source%20checks.md).
+Stellar-Forge is built in nine phases (0–8), entirely on this machine: Python computes every result from published physics, a TypeScript observatory only displays it, and one shared JSON fixture keeps the two in step. The first visible milestone is the Sun's track on an HR diagram in the browser at the end of Phase 1; your questions on lifetimes, remnants and planets are answered by Phases 3, 5 and 6. Every reference and 57 specific claims were checked against their sources on 6 November 2026 — see [Source checks](Source%20checks.md).
 
-## Changes in this revision
+## Revision history
+
+**Revision 3 — consistency fixes before implementation (6 November 2026)**
+
+- **Solar System validation:** Phase 6 now lists each planet's expected outcome. Mercury, Venus and Earth are engulfed. Mars is borderline, and either outcome passes if the model reports what decided it. Jupiter and beyond survive on orbits widened 1.76–1.84×.
+- **Pair instability:** the gap's lower edge (about 45 M☉) is applied at every metallicity. Phase 3 reports, as its own result, which stars reach the gap.
+- **Phase 4:** the required Sun-like solver (the gate) is separate from the 1–20 M☉ extension, a goal whose results are reported.
+- **Planet classes:** one ordered rule set uses envelope fraction, mass, core composition and formation location, so no two classes overlap.
+- **Atmospheres:** the empirical cosmic shoreline (a kept-or-lost label) is separate from the time-dependent escape calculation that strips hydrogen–helium envelopes.
+- **MIST:** v1.2 stays the starting dataset; Phase 1 compares it with v2.5 before the dataset format is fixed.
+- **Effort:** 47–63 working days, up from 45–61 (Phase 1 +1 day for the comparison, Phase 6 +1 day for the escape calculation).
+- **Source checks:** 7 claims added (57 in all); the shoreline verdict moved from Confirmed to Refined; a new column shows what the plan now says for each claim.
+
+**Revision 2 — source checks and the outside review (6 November 2026)**
 
 - **Source checks:** all 56 references match their published records. Of 50 claims, 32 held, 11 were tightened and 6 were corrected:
     - MIST v1.2 evolves stars to the end only for [Fe/H] ≥ −2.0; below that, tracks stop after core helium burning.
@@ -27,12 +40,12 @@ Stellar-Forge is built in nine phases (0–8), entirely on this machine: Python 
 ```mermaid
 flowchart TD
     P0["Phase 0 · Scaffold, data contract, Aion Forge copy · 3–4 days"]
-    P1["Phase 1 · Star evolution from MIST · 7–9 days"]
+    P1["Phase 1 · Star evolution from MIST · 8–10 days"]
     P2["Phase 2 · Remnants · 4–5 days"]
     P3["Phase 3 · Experiments · 3–4 days · answers Q1"]
     P4["Phase 4 · Structure lab · 6–9 days"]
     P5["Phase 5 · Planet formation · 11–15 days · answers Q2"]
-    P6["Phase 6 · Planet fates · 6–8 days · answers Q3"]
+    P6["Phase 6 · Planet fates · 7–9 days · answers Q3"]
     P7["Phase 7 · Observatory web app · 5–7 days"]
     P8["Phase 8 (optional) · Local API · 2–4 days"]
     P0 --> P1 --> P2 --> P3
@@ -49,7 +62,7 @@ flowchart TD
 
 Q1 = lifetimes and remnants against mass and metallicity · Q2 = how many planets form, of which types · Q3 = what happens to them as the star ages.
 
-Phases 1, 4 and 5 can each start once Phase 0 is done; Phase 4's final checks wait for Phase 1, and Phase 6 waits for Phases 2 and 5. The 45–61 days leave out the optional Phase 8. They are focused-effort estimates, not deadlines: Phase 0's benchmark resets them, and validation is never cut to meet them.
+Phases 1, 4 and 5 can each start once Phase 0 is done; Phase 4's final checks wait for Phase 1, and Phase 6 waits for Phases 2 and 5. The 47–63 days leave out the optional Phase 8. They are focused-effort estimates, not deadlines: Phase 0's benchmark resets them, and validation is never cut to meet them.
 
 ## Ground rules
 
@@ -162,7 +175,7 @@ Stellar-Forge/
 │   ├── structure.py         polytropes and the zero-age main-sequence solver
 │   ├── imf.py binary.py activity.py colour.py   ported from Aion Forge
 │   ├── planets/             disk, growth, migration, population, classify,
-│   │                        coevolution, escape, mass_radius
+│   │                        coevolution, shoreline, escape, mass_radius
 │   ├── experiments.py       mass × metallicity sweeps (command line)
 │   └── export.py            writes contract-shaped JSON with provenance
 ├── contract/
@@ -179,7 +192,7 @@ Stellar-Forge/
 ├── documentation/           every document
 │   ├── Stellar-Forge Build Plan.md
 │   ├── Source checks.md
-│   ├── data/                generated dataset reports, such as the MIST coverage report
+│   ├── data/                generated dataset reports, such as the MIST coverage and version-comparison reports
 │   └── references/          downloaded papers, web pages and metadata (kept out of Git); index and check scripts
 ├── PROVENANCE.md            every file taken from Aion Forge
 ├── CLAUDE.md                the ground rules, for future sessions
@@ -216,7 +229,7 @@ Every export carries a `meta` block, so any result can be reproduced and read co
 | --- | --- | --- |
 | `schema_version` | `1` | both contract tests compare it |
 | `generator` | `stellarforge 0.1.0`, git commit | the exact code that made the file |
-| `dataset` | `MIST v1.2, v/vcrit = 0.4` | which published data the numbers came from |
+| `dataset` | `MIST v1.2, v/vcrit = 0.4, Asplund 2009 abundances` | which published data the numbers came from, including its abundance scale |
 | `models` | `{"remnant": "fryer2012-delayed", "ifmr": "cummings2018-mist"}` | which prescription produced each result |
 | `inputs` | `{"mass_msun": 1.0, "feh": 0.0}` | the run's parameters |
 | `seed` | `12345`, or `null` | random draws repeat exactly |
@@ -268,22 +281,30 @@ Every export carries a `meta` block, so any result can be reproduced and read co
 | Stars of 0.7 M☉ and below | to the end of the main sequence, which takes over 35 Gyr at 0.7 M☉ |
 | Rotation | v/vcrit = 0.4 by default; a non-rotating set is also released |
 
-MIST v2.5 (released 24 February 2026; Dotter et al. 2026, in press) adds α-enhanced grids and may cover low metallicities more fully; whether to use it is an open question.
+**Dataset decision.** v1.2 is the initial implementation candidate, but the dataset format (processed-grid layout, grid axes and contract fields) is fixed only after Phase 1 compares it with MIST v2.5. v2.5 was released on 24 February 2026 (Dotter et al. 2026, in press); the MIST site says it adopts the GS98 abundance pattern, covers the full [Fe/H] range and adds a range of [α/Fe] values.
 
 **Steps**
 
 1. `scripts/fetch_mist.py` downloads one archive into `~/.cache/stellar-forge/mist/` first, resuming after interruptions and checking its size.
 2. `python -m stellarforge.mist inventory` writes `documentation/data/MIST coverage.md`. For each metallicity it lists the masses present, EEP counts, how each track ends, and the column names and units read from the header.
-3. Convert that archive and time it, then fetch and convert the rest. Each archive is read in place with Python's `tarfile` module, never unpacked. About 20 columns are kept as float32 — age, current mass, log L, log Teff, log R, log g, helium and carbon–oxygen core masses, central hydrogen and helium, central temperature and density, and MIST's `phase` label — in one `.npz` file per metallicity.
-4. `stellarforge/evolution.py` builds a track for any mass and metallicity by interpolating at the same equivalent evolutionary phase (EEP), in log mass and [Fe/H]. Safeguards:
+3. Compare v1.2 with v2.5 before fixing the dataset format. Check v2.5's download sizes first; if they fit the disk budget, fetch one solar-metallicity and one [Fe/H] −3.0 archive ([α/Fe] = 0, rotating). Write `documentation/data/MIST version comparison.md` covering:
+    - mass and metallicity coverage, and how tracks end below [Fe/H] −2.0;
+    - EEP definitions, column names and units;
+    - the abundance scale: Asplund 2009 against GS98, so the same [Fe/H] label means a different Z;
+    - the extra [α/Fe] axis and the rotation sets;
+    - total download size against the 5 GB budget, and citation status.
+
+    v1.2 stays the default unless you choose v2.5 from this comparison. Until then, `mist.py` reads columns by name through a small per-version column map, so neither version is hard-wired.
+4. Convert the first v1.2 archive and time it, then fetch and convert the rest of the chosen version. Each archive is read in place with Python's `tarfile` module, never unpacked. About 20 columns are kept as float32 — age, current mass, log L, log Teff, log R, log g, helium and carbon–oxygen core masses, central hydrogen and helium, central temperature and density, and MIST's `phase` label — in one `.npz` file per metallicity.
+5. `stellarforge/evolution.py` builds a track for any mass and metallicity by interpolating at the same equivalent evolutionary phase (EEP), in log mass and [Fe/H]. Safeguards:
     - interpolate only inside a documented valid grid cell, where all four corner tracks exist and share the EEPs needed;
     - never blend tracks that end differently: white-dwarf cooling, carbon burning, stopped after core helium burning, stopped at the end of the main sequence;
     - treat missing grid points explicitly and refuse to extrapolate;
     - near a boundary, use the nearest valid track with a flag rather than an invalid blend;
     - record the method (grid track, EEP interpolation or nearest track) and its validity flags on every exported track.
-5. It exposes `Star(mass, feh)` with `.track()`, `.at(age)` and `.phases()`. Phases follow MIST's labels: pre-main sequence, main sequence, red giant branch, core helium burning, early and thermally pulsing AGB, post-AGB and Wolf–Rayet.
-6. `export.py` writes the web grid, computed in Python: 200 log-spaced masses × 46 metallicities ([Fe/H] −4.0 to +0.5 in 0.1 dex steps). Each track has 150–250 points including every primary EEP, values rounded to 4–5 significant digits, unit-suffixed fields, `rgb` for display and its provenance. That is about 2–3 MB per metallicity file.
-7. Web view **Star Builder**:
+6. It exposes `Star(mass, feh)` with `.track()`, `.at(age)` and `.phases()`. Phases follow MIST's labels: pre-main sequence, main sequence, red giant branch, core helium burning, early and thermally pulsing AGB, post-AGB and Wolf–Rayet.
+7. `export.py` writes the web grid, computed in Python: 200 log-spaced masses × 46 metallicities ([Fe/H] −4.0 to +0.5 in 0.1 dex steps). Each track has 150–250 points including every primary EEP, values rounded to 4–5 significant digits, unit-suffixed fields, `rgb` for display and its provenance. That is about 2–3 MB per metallicity file.
+8. Web view **Star Builder**:
     - mass and [Fe/H] sliders that snap to the exported grid values;
     - an age scrubber that smooths animation between neighbouring points of one track (display only);
     - an SVG HR diagram, a star sphere coloured by `rgb` and sized by radius, and a phase timeline;
@@ -293,11 +314,11 @@ MIST v2.5 (released 24 February 2026; Dotter et al. 2026, in press) adds α-enha
 
 **Known limits:** with v1.2, stars below [Fe/H] −2.0 stop after core helium burning, so their remnants and late phases are not shown. Stars of 0.7 M☉ and below stop at the end of the main sequence, which they have not reached in the universe's 13.8 Gyr.
 
-**Machine cost:** a 1.5 GB download; 15–40 minutes of one-time conversion; under 1 GB of RAM at a time; about 150 MB of web data.
+**Machine cost:** a 1.5 GB download, plus two v2.5 test archives if their sizes fit; 15–40 minutes of one-time conversion; under 1 GB of RAM at a time; about 150 MB of web data.
 
-**Done when:** the Sun check passes, the coverage report is written, leave-one-out errors are reported, and Star Builder responds in under 50 ms per slider move.
+**Done when:** the Sun check passes, the coverage report and the v1.2–v2.5 comparison are written, the dataset choice is recorded, leave-one-out errors are reported, and Star Builder responds in under 50 ms per slider move.
 
-**Effort:** 7–9 days.
+**Effort:** 8–10 days.
 
 ## Phase 2 — Remnants: white dwarfs, neutron stars, black holes, pair instability
 
@@ -308,7 +329,7 @@ MIST v2.5 (released 24 February 2026; Dotter et al. 2026, in press) adds α-enha
 | Track reaches the white-dwarf cooling sequence | White dwarf | Final core mass from the MIST track, checked against the MIST-based initial–final mass relation (0.080 Mi + 0.489 M☉ for 0.83–2.85 M☉; scatter 0.06 M☉) | Cummings et al. 2018 |
 | Super-AGB window, 9.0–9.25 M☉ in the fiducial model | Neutron star from an electron-capture supernova | Optional; the window moves with mixing and mass-loss assumptions | Poelarends et al. 2008 |
 | Track ends at carbon burning | Neutron star or black hole | "Rapid" and "delayed" prescriptions from carbon–oxygen core mass and final mass, both kept; neutron star below Fryer's 2.5 M☉ dividing line | Fryer et al. 2012 |
-| Helium core of about 40–65 M☉ (thresholds differ between papers) | Black hole capped near 40–45 M☉ | Pulsations shed the excess mass | Heger & Woosley 2002; Woosley 2017; Belczynski et al. 2016; Farmer et al. 2019 |
+| Helium core of about 40–65 M☉ (thresholds differ between papers) | Black hole capped near 45 M☉ (40.5 M☉ in Belczynski et al.; 40–56 M☉ across Farmer et al.'s uncertainties) | Pulsations shed the excess mass | Heger & Woosley 2002; Woosley 2017; Belczynski et al. 2016; Farmer et al. 2019 |
 | Helium core of 64–133 M☉ | None: the star is destroyed | Pair-instability supernova | Heger & Woosley 2002 |
 | Helium core above 133 M☉ | Black hole by direct collapse | The whole star collapses | Heger & Woosley 2002 |
 | Track stops at the end of the main sequence (0.7 M☉ and below) | None yet | Labelled "still on the main sequence" | Choi et al. 2016 |
@@ -364,7 +385,9 @@ The record also says it assumes a single star. Most massive stars interact with 
 3. Random draws, such as IMF sampling, use fixed seeds, so the same command gives byte-identical results.
 4. Web view **Experiments**: heatmaps and curves read from the exported results, with values and provenance shown on hover.
 
-**Checks** (numbers in Validation): shorter main-sequence lifetimes and heavier black holes at low metallicity; the IMF share of stars born above 8 M☉; which metallicities reach the pair-instability gap, reported as a Stellar-Forge result rather than tested against a published target.
+**Checks** (numbers in Validation): shorter main-sequence lifetimes at low metallicity; heavier final cores, and so heavier black holes below the gap, at low metallicity, where winds are weaker (Heger et al. 2003); the IMF share of stars born above 8 M☉.
+
+**Pair instability across metallicity:** the lower edge of the black-hole mass gap sits near 45 M☉ and barely depends on metallicity (Farmer et al. 2019), so the same edge is checked at every metallicity. Metallicity changes something else: which initial masses build helium cores big enough to reach the pulsational and pair-instability ranges, because winds are weaker at low metallicity. The remnant map reports that boundary as a Stellar-Forge result; no published target exists for it.
 
 **Machine cost:** each sweep under 2 minutes; results of tens of MB.
 
@@ -398,20 +421,20 @@ Applied to the Sun, the n = 3 polytrope (Eddington's standard model) gives a cen
 | Convection | Schwarzschild criterion; adiabatic gradient in convective zones | — | Kippenhahn, Weigert & Weiss 2012 |
 | Composition | uniform; X, Y and Z from [Fe/H] with MIST's helium scaling, Y = 0.249 + 1.5 Z | — | Choi et al. 2016 |
 
-**Milestones** — each is a checkpoint with its own tests:
+**Required: the Sun-like solver (the phase gate).** Milestones 1–5 run at 1 M☉ and [Fe/H] = 0.0, and each is a checkpoint with its own tests:
 
 1. Analytic Lane–Emden cases (n = 0, 1, 5) match their exact solutions.
 2. Numerical polytropes for n = 0 to 5 reproduce the published constants.
 3. A simplified Sun-like zero-age model converges (fixed composition, ideal gas, constant opacity).
 4. Kramers and electron-scattering opacity and pp and CNO energy generation are added.
 5. Convection and the boundary and matching treatment are added. The fitting method integrates out from the centre and in from the surface, matches at half the mass, and solves for central pressure, central temperature, radius and luminosity with `scipy.optimize.root`. Starting guesses come from the MIST zero-age star of the same mass and metallicity.
-6. The mass range is extended step by step (1 M☉, then 0.8–3 M☉, then up to 20 M☉), stopping where convergence fails, and the range reached is reported.
+**Goal, not a gate: the 1–20 M☉ extension.** Milestone 6 runs the same solver at [Fe/H] −1.0, 0.0 and +0.25 (points on the MIST v1.2 grid), first for 0.8–3 M☉ and then up to 20 M☉. It stops where convergence fails and reports the masses reached and each mass's errors against MIST. The pp-against-CNO check needs masses above 1 M☉, so it belongs to this goal.
 
 **Comparison with MIST:**
 
 - **Where:** at MIST's zero-age main-sequence EEP, with the same X, Y and Z.
 - **What:** luminosity, radius, central temperature and density, convective-core mass, and the pp and CNO shares.
-- **Targets:** listed in Validation.
+- **Targets:** listed in Validation, with the gate and the goal in separate rows.
 
 **Steps**
 
@@ -422,11 +445,11 @@ Applied to the Sun, the n = 3 polytrope (Eddington's standard model) gives a cen
     - a cross-section showing convective and radiative zones around the burning core;
     - a polytrope explorer with an n slider that snaps to the exported values.
 
-**Machine cost:** 1–10 s per model; a 30-mass × 3-metallicity grid in 3–15 minutes on 4 workers.
+**Machine cost:** 1–10 s per model; the extension grid (30 masses × 3 metallicities) takes 3–15 minutes on 4 workers.
 
-**Done when:** milestones 1–5 pass for a Sun-like star, and the mass range reached by milestone 6 is reported. The full 1–20 M☉ range is a goal, not a gate.
+**Done when:** the gate passes — milestones 1–5 and their numerical and scientific checks at 1 M☉ — and the extension's results are reported, whatever mass range it reaches. Phase 4 is complete without the full 1–20 M☉ range.
 
-**Effort:** 6–9 days — the hardest numerics in the plan, and likely to need iteration.
+**Effort:** 6–9 days for the gate and as much of the extension as fits; the hardest numerics in the plan, and likely to need iteration.
 
 ## Phase 5 — Planet formation: how many planets form, and of which types
 
@@ -450,15 +473,31 @@ Applied to the Sun, the n = 3 polytrope (Eddington's standard model) gives a cen
 | Migration | type II for gap-opening giants; type I damped by C1, default 0.03–0.1 (the range that matches observations) | Ida & Lin 2008a |
 | Multiplicity | version 1: neighbouring feeding zones never overlap; version 2: rocky embryos cross orbits and merge after the gas is gone | Ida & Lin 2010 |
 
-| Planet type | Rule (named constants, adjustable) |
-| --- | --- |
-| Rocky | under 2 M⊕, no envelope |
-| Super-Earth | 2–10 M⊕, rocky, no lasting envelope |
-| Sub-Neptune | 2–20 M⊕ with a hydrogen–helium envelope of a few percent |
-| Ice giant | 10–50 M⊕, formed beyond the snow line, core-dominated |
-| Gas giant | over 50 M⊕, built by runaway gas capture |
+**Planet classes.** Each planet is classified from four model outputs:
 
-Radii come from the mass–radius relation ported from Aion Forge. That relation is the Chen & Kipping 2017 fit, whose break at 2.0 M⊕ also separates rocky worlds from larger ones.
+- **Total mass** M_p.
+- **Envelope fraction** f_env = M_env / M_p, the share of the mass in the hydrogen–helium envelope. It comes from the model's gas accretion: envelopes grow only once a planet passes the critical mass, on a Kelvin–Helmholtz timescale taken from Ikoma et al. 2000 (Ida & Lin 2004a, eqs. 28–29).
+- **Core composition:** ice-rich if the core grew beyond the snow line, where η_ice = 4.2; rock-dominated if it grew inside.
+- **Formation location:** the orbit where the core grew, compared with the snow line at that time.
+
+The rules run in order and the first match wins, so every planet gets exactly one class:
+
+| Order | Class | Rule |
+| --- | --- | --- |
+| 1 | Gas giant | f_env ≥ 0.5 |
+| 2 | Ice giant | 0.01 ≤ f_env < 0.5, M_p ≥ 10 M⊕ and an ice-rich core |
+| 3 | Sub-Neptune | 0.01 ≤ f_env < 0.5, and not an ice giant |
+| 4 | Super-Earth | f_env < 0.01 and M_p ≥ 2 M⊕ |
+| 5 | Terrestrial | f_env < 0.01 and M_p < 2 M⊕ |
+
+- **Thresholds** are named constants and Stellar-Forge choices, varied in the sensitivity runs:
+    - 2 M⊕ is Chen & Kipping's (2017) break between solid and Neptunian worlds.
+    - 0.01 sits below the few-percent envelope that already doubles a small planet's radius (Owen & Wu 2017).
+    - 0.5 means the envelope outweighs everything else.
+    - 10 M⊕ keeps small icy planets out of the ice-giant class; Uranus and Neptune are about 15 and 17 M⊕.
+- **Composition and location are always reported,** so a super-Earth that grew beyond the snow line appears as an ice-rich super-Earth.
+- **Classes are re-evaluated in Phase 6** after every event, with the same rules: a sub-Neptune stripped below 1% envelope becomes a super-Earth. Exports keep both the class at formation and the current class.
+- **Radius does not enter the classification.** Display radii come from the mass–radius relation ported from Aion Forge (the Chen & Kipping 2017 fit). Comparisons with radius-based surveys, such as Petigura et al. 2018, use those radii and say so.
 
 **Calibration labels.** Every cell and result is labelled as one of:
 
@@ -473,7 +512,7 @@ Radii come from the mass–radius relation ported from Aion Forge. That relation
 2. Vectorise with NumPy: arrays of systems × embryos, stepped in log time from 0.1 Myr until the gas disk is gone.
 3. Run the default grid: 8 star masses (0.2–1.5 M☉) × 15 metallicities ([Fe/H] −4.0 to +0.5), 5,000 systems per cell, with a fixed seed per cell. Stars of 1.5–3 M☉ run only if you choose the wider range, labelled as extrapolation.
 4. Run sensitivity checks: repeat key cells with C1, disk lifetime, disk-mass spread and the disk-mass scaling varied, and report which conclusions hold. Show results as ranges or distributions where a single number would hide that spread.
-5. Record the full parameter set in every result's `meta`, and export per-cell statistics plus 200 sample systems per cell (the contract's `population` and `system` blocks).
+5. Record the full parameter set in every result's `meta`, and export per-cell statistics plus 200 sample systems per cell (the contract's `population` and `system` blocks). Each planet carries its class, envelope fraction, core composition and formation location.
 6. Web view **Planets**:
     - the planet mass–distance diagram;
     - giant-planet occurrence against [Fe/H];
@@ -482,7 +521,7 @@ Radii come from the mass–radius relation ported from Aion Forge. That relation
 
 **Optional later, never a blocker:** pebble accretion (Lambrechts & Johansen 2012) as a second growth model, and published Bern-model populations (Emsenhuber et al. 2021) as an outside cross-check once the main model works.
 
-**Checks** (numbers in Validation): giant-planet occurrence against metallicity and star mass; the giant fraction for a solar twin; the flat occurrence of warm super-Earths.
+**Checks** (numbers in Validation): giant-planet occurrence against metallicity and star mass; the giant fraction for a solar twin; the flat occurrence of warm super-Earths; the classifier's one-class-per-planet test.
 
 **Machine cost:** seconds per cell; the full grid in 10–40 minutes on 4 workers; under 0.5 GiB per worker.
 
@@ -499,29 +538,43 @@ Radii come from the mass–radius relation ported from Aion Forge. That relation
 | Habitable zone | inner and outer edges from the star's luminosity and temperature over time; valid for 2,600–7,200 K, flagged outside it | Kopparapu et al. 2013, 2014 |
 | Orbits widen as the star loses mass | orbit size × star mass stays constant while mass loss is slow compared with the orbit; eccentricity is kept | Veras et al. 2011; Schröder & Connon Smith 2008 |
 | Tidal pull-in and engulfment by a giant | equilibrium tide in the convective envelope; a planet is engulfed once its orbit is inside the star | Zahn 1977; Verbunt & Phinney 1995; Villaver & Livio 2009; Mustill & Villaver 2012 |
-| Atmosphere loss | XUV-driven escape judged against the cosmic shoreline, ported from Aion Forge; sub-Neptunes can be stripped to super-Earths | Zahnle & Catling 2017; Wright et al. 2011; Ribas et al. 2005; Owen & Wu 2017; Fulton et al. 2017 |
+| Atmosphere kept or lost (empirical label) | the cosmic shoreline: the planet's cumulative XUV dose against its escape velocity to the fourth power, the slope Zahnle & Catling found in the Solar System. A yes-or-no label, not a mass-loss calculation. Ported from Aion Forge; its scale factor (K = 10) and retention curve are Aion Forge's choices and stay labelled as such | Zahnle & Catling 2017; Wright et al. 2011; Ribas et al. 2005 |
+| Hydrogen–helium envelope loss over time (calculation) | energy-limited escape, Ṁ_env = η π R_p³ L_HE / (4π a² G M_p) with η = 0.1, integrated along the star's XUV history; R_p from Owen & Wu's envelope structure model, with the Chen & Kipping radius as a flagged fallback. It lowers f_env, so the Phase 5 rules can turn a sub-Neptune into a super-Earth | Owen & Wu 2017; Ribas et al. 2005; Wright et al. 2011; Fulton et al. 2017 |
 | Supernova | a circular orbit is unbound if more than half the system's mass is lost at once; eccentric orbits can survive near apastron; neutron-star kicks (σ = 265 km/s) lower survival further | Hills 1983; Hobbs et al. 2005 |
 | After the star dies | survivors orbit the white dwarf on widened orbits; pulsar planets are described, not modelled | Wolszczan & Frail 1992 |
+
+**Shoreline and escape stay separate.** The cosmic shoreline is an observed trend, used as a kept-or-lost label. Energy-limited escape is a physical rate integrated over time, and it predicts a different slope: I_XUV ∝ v_esc³ √ρ rather than v_esc⁴ (Zahnle & Catling 2017). Both are computed and reported side by side, never merged; where they disagree, the planet carries both results and a flag.
+
+**Solar System reference case.** Run with MIST's own solar track, the expected outcomes are:
+
+| Planet (orbit today) | Expected outcome | Basis |
+| --- | --- | --- |
+| Mercury (0.39 AU) and Venus (0.72 AU) | engulfed on the red-giant branch | inside the red-giant Sun even after their orbits widen |
+| Earth (1.00 AU) | engulfed | the Sun reaches 256 R☉ (1.2 AU) at the red-giant tip, and tides and drag pull Earth in; surviving that phase needs about 1.15 AU today (Schröder & Connon Smith 2008) |
+| Mars (1.52 AU) | borderline: either outcome passes if the model reports what decided it | beyond the 1.15 AU limit, so it outlasts the red-giant tip; but terrestrial planets inside about 1.5 AU of a 1 M☉ star can enter the envelope on the AGB (Mustill & Villaver 2012), while Schröder & Connon Smith's Sun never grows that large again |
+| Jupiter and beyond | survive, with orbits widened 1.76–1.84× | the Sun ends as a white dwarf of 0.544 M☉ (Schröder & Connon Smith 2008) to 0.569 M☉ (Cummings et al. 2018) |
+
+For each planet the model reports its closest approach in stellar radii and the phase that decided its fate. MIST's winds (Reimers η = 0.1 on the red-giant branch, Blöcker η = 0.2 on the AGB; Choi et al. 2016) differ from Schröder & Connon Smith's, so the report puts MIST's tip-RGB radius and mass beside their 256 R☉ and 0.668 M☉.
 
 The plan models single stars. The binary stability limits ported from Aion Forge (Holman & Wiegert 1999) apply only if companion stars are added later. Planet fates need complete tracks, so with MIST v1.2 they run for [Fe/H] −2.0 to +0.5.
 
 **Steps**
 
 1. `planets/coevolution.py` steps each planet along its star's track, with finer steps on the giant branches, where the radius changes fast.
-2. Every planet gets an event timeline: formed (with its formation conditions), enters and leaves the habitable zone, loses its atmosphere, is engulfed, is unbound, or survives around the remnant.
+2. Every planet gets an event timeline: formed (with its formation conditions), enters and leaves the habitable zone, crosses the cosmic shoreline, loses envelope mass to escape, changes class, is engulfed, is unbound, or survives around the remnant. After each event the Phase 5 classification rules are applied again.
 3. Export adds `events` to the contract's `system` block.
 4. Web view **System Timeline**:
     - a 2D orbit map with a time scrubber: the star swells, the habitable zone moves out, orbits widen, and engulfed planets vanish;
     - an event log;
     - the optional 3D system view.
 
-**Checks** (numbers in Validation): the Solar System's fate; when Earth leaves the habitable zone; supernova survival.
+**Checks** (numbers in Validation): the Solar System reference case; when Earth leaves the habitable zone; supernova survival; the shoreline label on Solar System planets; the escape rate against Owen & Wu's formula.
 
 **Machine cost:** milliseconds per planet; every sample system in under a minute.
 
-**Done when:** every sample system has a timeline, representative cases match the literature (the Solar System above all), and System Timeline works.
+**Done when:** every sample system has a timeline, the Solar System reference case passes as defined above, and System Timeline works.
 
-**Effort:** 6–8 days.
+**Effort:** 7–9 days.
 
 ## Phase 7 — The observatory web app
 
@@ -611,17 +664,17 @@ Left out: `life.ts` and the city-light and orbital-shell shaders, which belong t
 | `star.ts`: `kroupaMass`, `KROUPA_IMF` | `stellarforge/imf.py` | random star masses | Kroupa 2001 |
 | `binary.ts`: `S_TYPE_LIMIT`, `P_TYPE_LIMIT` | `stellarforge/binary.py` | stable planet orbits in binaries | Holman & Wiegert 1999 |
 | `star.ts`: the XUV and activity block | `stellarforge/activity.py` | a star's high-energy output over time | Wright et al. 2011 (X-ray saturation, 10^−3.13 of the star's light); Ribas et al. 2005 (1–1,200 Å decay, exponent −1.23) |
-| `atmosphericEscape.ts` | `stellarforge/planets/escape.py` | which planets keep an atmosphere | Zahnle & Catling 2017 |
+| `atmosphericEscape.ts`: the shoreline part only | `stellarforge/planets/shoreline.py` | the kept-or-lost atmosphere label | Zahnle & Catling 2017 for the v_esc⁴ slope; the scale factor K = 10 and the retention curve are Aion Forge's choices, labelled as such |
 | `planetBasics.ts`: `MASS_RADIUS` | `stellarforge/planets/mass_radius.py` | planet radius from mass | Chen & Kipping 2017 |
 | `star.ts`: `temperatureToColor` | `stellarforge/colour.py` | a star's display colour | a standard blackbody-colour approximation |
 
-The activity port records which wavelength band each number covers: Wright's saturation level is X-ray only, while Ribas's decay covers 1–1,200 Å. pytest compares each port with expected numbers from Aion Forge's own tests — `binary.test.ts`, `xuv.test.ts`, `atmosphericEscape.test.ts` and `starColour.test.ts` — read as text.
+The activity port records which wavelength band each number covers: Wright's saturation level is X-ray only, while Ribas's decay covers 1–1,200 Å. From `atmosphericEscape.ts` only the shoreline label is ported; its water-loss and climate coupling stay in Aion Forge. The energy-limited envelope escape in `planets/escape.py` is new code from Owen & Wu 2017, not a port. pytest compares each port with expected numbers from Aion Forge's own tests — `binary.test.ts`, `xuv.test.ts`, `atmosphericEscape.test.ts` and `starColour.test.ts` — read as text.
 
 **Not reused:** Aion Forge's lifetime law (lifetime ∝ M^−2.5), its fixed phase fractions (85% and 95% of the lifetime), its remnant mass cuts (8 and 25 M☉), its Kalirai et al. 2008 white-dwarf relation and its randomly drawn planets. Phases 1, 2 and 5 replace them; simplified physics is not kept just because it already exists.
 
 ## Validation
 
-A phase is done only when its checks pass; the Status column tracks them as the work goes. The numbers live here and nowhere else in this plan. Each check is one of three kinds, kept apart:
+A phase is done only when its required checks pass; rows marked (goal) are reported, not required. The Status column tracks them as the work goes. The numbers live here and nowhere else in this plan. Each check is one of three kinds, kept apart:
 
 - **Contract:** the exported data has the expected structure and types.
 - **Numerical:** solvers and calculations reproduce known cases.
@@ -640,20 +693,25 @@ Passing tests does not by itself make the project scientifically validated. Whet
 | 1 | Scientific | Metallicity trend | at 1 M☉, lower [Fe/H] gives a hotter, brighter star with a shorter main sequence | MIST | Not run |
 | 2 | Scientific | Initial–final mass, solar metallicity | within the 0.06 M☉ scatter of the MIST-based relation | Cummings et al. 2018 | Not run |
 | 2 | Scientific | Neutron-star masses | predicted masses fall within the measured range, up to about 2.0 M☉ | Özel & Freire 2016 | Not run |
-| 2 | Scientific | Lower edge of the pair-instability gap | heaviest black hole below the gap near 45 M☉ (40–56 M☉ allowed) | Farmer et al. 2019 | Not run |
+| 2 | Scientific | Lower edge of the pair-instability gap | at every metallicity where stars reach the gap, the heaviest black hole below it is near 45 M☉ (40–56 M☉ allowed) | Farmer et al. 2019 | Not run |
 | 3 | Numerical | IMF share above 8 M☉ | 0.71% of stars by number (Kroupa IMF, 0.1–100 M☉); about 11 such stars per 1,000 M☉ formed | Kroupa 2001, recomputed | Not run |
 | 3 | Numerical | Reproducibility | the same command gives a byte-identical `result.json` | this plan | Not run |
+| 3 | Scientific | Remnants against metallicity | final helium-core masses, and black-hole masses below the gap, rise as metallicity falls; which initial masses reach the gap is reported as a result, with no target | Heger et al. 2003 | Not run |
 | 4 | Numerical | Lane–Emden constants | n = 1.5: ξ₁ = 3.65375, ρc/ρ̄ = 5.99071; n = 3: ξ₁ = 6.89685, ρc/ρ̄ = 54.1825 | Chandrasekhar 1939; recomputed | Not run |
 | 4 | Numerical | Eddington standard model | the Sun's central temperature at 1.21 × 10⁷ K (μ = 0.617) | recomputed | Not run |
-| 4 | Scientific | Solver against MIST | log L and log R within 0.1 dex, log Tc within 0.05 dex, at MIST's zero-age EEP with matched X, Y, Z | MIST zero-age main sequence | Not run |
-| 4 | Scientific | pp chain against CNO cycle | crossover and convective-core onset read from MIST's pp, CNO and convective-core columns; textbook value about 1.1–1.3 M☉ | MIST; Kippenhahn, Weigert & Weiss 2012 | Not run |
+| 4 | Scientific | Solver against MIST: Sun-like (gate) | at 1 M☉ and [Fe/H] = 0.0: log L and log R within 0.1 dex, log Tc within 0.05 dex, at MIST's zero-age EEP with matched X, Y, Z | MIST zero-age main sequence | Not run |
+| 4 | Scientific | Solver against MIST: 1–20 M☉ extension (goal) | the same tolerances for each mass reached at [Fe/H] −1.0, 0.0 and +0.25; the masses reached and any misses are reported, not required | MIST zero-age main sequence | Not run |
+| 4 | Scientific | pp chain against CNO cycle (goal) | crossover and convective-core onset read from MIST's pp, CNO and convective-core columns within the extension's mass range; textbook value about 1.1–1.3 M☉ | MIST; Kippenhahn, Weigert & Weiss 2012 | Not run |
 | 5 | Scientific | Giant planets against metallicity | slope consistent with occurrence ∝ 10^(2[Fe/H]) | Fischer & Valenti 2005 | Not run |
 | 5 | Scientific | Giant planets against star mass | consistent with occurrence ∝ M★ × 10^(1.2[Fe/H]); 3% at 0.5 M☉ to 14% at 2 M☉ at solar metallicity | Johnson et al. 2010 | Not run |
 | 5 | Scientific | Solar twin | giant occurrence about 10.5% for 0.3–10 Jupiter masses and periods of 2–2,000 days | Cumming et al. 2008 | Not run |
 | 5 | Scientific | Small planets | warm super-Earths (1.0–1.7 R⊕, 10–100 days) flat at about 20 per 100 stars from [Fe/H] −0.4 to +0.4; sub-Neptunes and hot planets rise with metallicity | Petigura et al. 2018; Buchhave et al. 2012 | Not run |
-| 6 | Scientific | Solar System fate | Mercury, Venus and Earth engulfed; Mars borderline; Jupiter and beyond survive on orbits widened about 1.76× | Schröder & Connon Smith 2008; Mustill & Villaver 2012; Cummings et al. 2018 | Not run |
+| 5 | Numerical | Planet classifier | every planet gets exactly one class; boundary values (f_env = 0.01 or 0.5, M_p = 2 or 10 M⊕) land on the documented side; Solar System test: Mercury to Mars terrestrial, Jupiter and Saturn gas giants, Uranus and Neptune ice giants | this plan; the Solar System envelope fractions are textbook values, not yet source-checked | Not run |
+| 6 | Scientific | Solar System reference case | Mercury, Venus and Earth engulfed; Mars either way, with its closest approach and deciding phase reported; Jupiter and beyond survive on orbits widened 1.76–1.84× | Schröder & Connon Smith 2008; Mustill & Villaver 2012; Cummings et al. 2018 | Not run |
 | 6 | Scientific | Earth and the habitable zone | the inner edge, at 0.97–0.99 AU today, reaches 1 AU after about 0.16–0.56 Gyr | Kopparapu et al. 2013; Gough 1981, recomputed | Not run |
 | 6 | Numerical | Supernova survival | a circular orbit is unbound when more than half the mass is lost at once | energy argument; Hills 1983 | Not run |
+| 6 | Scientific | Cosmic shoreline label | Mercury falls on the airless side; Venus, Earth and Mars on the side with atmospheres | Zahnle & Catling 2017 | Not run |
+| 6 | Numerical | Energy-limited escape rate | matches Owen & Wu's eq. 19 for a hand-worked test planet | Owen & Wu 2017 | Not run |
 
 ## Risks and fallbacks
 
@@ -662,7 +720,7 @@ The biggest risks are machine limits (disk, GPU), gaps in the published data, an
 | Risk | What goes wrong | Fallback |
 | --- | --- | --- |
 | SSD fills up (44 GB free, 81% used) | downloads or exports fail | stream archives instead of unpacking; cap working data at 5 GB; a `make clean-data` target; move archives to the 2 TB disk if it is made readable |
-| MIST v1.2 stops low-metallicity tracks after core helium burning | no remnants or planet fates below [Fe/H] −2.0 | label those stars "track incomplete"; evaluate MIST v2.5 (Open questions) |
+| MIST v1.2 stops low-metallicity tracks after core helium burning | no remnants or planet fates below [Fe/H] −2.0 | label those stars "track incomplete"; Phase 1 compares v1.2 with v2.5 before the dataset format is fixed |
 | Weak GPU (G210, nouveau driver) | 3D views stutter | 2D-first views, lowest shader quality, redraw only on change |
 | Memory contention with other open apps | swapping slows every job | at most 4 GiB per job; MIST processed one metallicity at a time |
 | Interpolating across tracks that end differently, or across the helium flash | unphysical tracks shown as real | interpolate only inside valid cells at the same EEP; flag and use the nearest valid track near boundaries; leave-one-out tests |
@@ -680,7 +738,7 @@ The biggest risks are machine limits (disk, GPU), gaps in the published data, an
 
 These choices change what gets downloaded or built. Until you decide, the plan uses the suggested default, which is also the first option listed.
 
-- [ ] **MIST version:** stay on v1.2, or evaluate v2.5? v1.2 is fully published and about 1.5 GB, but follows stars to the end only for [Fe/H] ≥ −2.0. v2.5 was released in February 2026 with its paper in press; it uses GS98 abundances and has α-enhanced grids, and its size and low-metallicity coverage are unchecked. Suggested: v1.2 for Phases 1–3, plus a v2.5 coverage check during Phase 1.
+- [ ] **MIST version:** keep v1.2 as the starting dataset and decide on v2.5 after Phase 1's comparison? v1.2 is fully published and about 1.5 GB, but follows stars to the end only for [Fe/H] ≥ −2.0. v2.5 was released in February 2026 with its paper in press; it uses GS98 abundances and has α-enhanced grids, and its size and low-metallicity coverage are unchecked. Suggested: yes; the comparison report (Phase 1, step 3) decides before the dataset format is fixed.
 - [ ] **Rotation:** use MIST's rotating tracks (v/vcrit = 0.4, the default), the non-rotating set, or both? Both doubles the download to about 2.8 GB. Suggested: rotating only, with its coverage verified before downloading more.
 - [ ] **Python:** may uv be installed in your home folder to provide Python 3.12, leaving system Python 3.10 as it is? Suggested: yes.
 - [ ] **External disk:** the 2 TB drive is mounted under the lawsikho account and this account cannot read it. Do you want it made readable as cold storage for raw archives? Suggested: no; the build does not depend on it.

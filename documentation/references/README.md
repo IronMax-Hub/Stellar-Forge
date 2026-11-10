@@ -4,7 +4,7 @@ Reference material downloaded for the Stellar-Forge plan on 6 November 2026. Wha
 
 | Folder | Contents |
 | --- | --- |
-| `papers/` | arXiv copies of the 17 papers checked in full; file names give the short citation and arXiv id |
+| `papers/` | arXiv copies of the 22 papers checked in full; file names give the short citation and arXiv id |
 | `papers/text/` | plain-text extracts of those papers (made with `pdftotext`), used for searching |
 | `web/` | MIST website pages (grids, home, references) and NASA's Sun fact sheet, as fetched |
 | `metadata/` | Crossref records and abstracts for every plan reference (`crossref_and_abstracts.json`) |
@@ -29,3 +29,8 @@ Reference material downloaded for the Stellar-Forge plan on 6 November 2026. Wha
 | Kroupa 2001, MNRAS 322, 231 — initial mass function | `papers/Kroupa2001_arXiv-astro-ph_0009005.pdf` |
 | Wright et al. 2011, ApJ 743, 48 — activity and rotation | `papers/Wright2011_arXiv-1109.4634.pdf` |
 | Ribas et al. 2005, ApJ 622, 680 — the Sun's XUV history | `papers/Ribas2005_arXiv-astro-ph_0412253.pdf` |
+| Heger et al. 2003, ApJ 591, 288 — how massive single stars end | `papers/Heger2003_arXiv-astro-ph_0212469.pdf` |
+| Schröder & Connon Smith 2008, MNRAS 386, 155 — the Sun's future and Earth's fate | `papers/SchroderSmith2008_arXiv-0801.4031.pdf` |
+| Mustill & Villaver 2012, ApJ 761, 121 — planets engulfed on the AGB | `papers/MustillVillaver2012_arXiv-1210.0328.pdf` |
+| Zahnle & Catling 2017, ApJ 843, 122 — the cosmic shoreline | `papers/ZahnleCatling2017_arXiv-1702.03386.pdf` |
+| Owen & Wu 2017, ApJ 847, 29 — the evaporation valley and energy-limited escape | `papers/OwenWu2017_arXiv-1705.10810.pdf` |
