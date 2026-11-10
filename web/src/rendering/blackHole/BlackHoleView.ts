@@ -120,6 +120,7 @@ export class BlackHoleView {
         time: { value: 0 },
         orbitRate: { value: animate ? 1 / SECONDS_PER_INNER_ORBIT : 0 },
         thinDisc: { value: blackHole.accretionMode === "thin-disc" ? 1 : 0 },
+        gas: { value: blackHole.accretionMode === "none" ? 0 : 1 },
         peakTemperatureK: { value: blackHole.discPeakTemperatureK },
         // The galaxy's seed as two numbers in [0, 1), for the gas's streaks and the sky's stars
         seed: { value: new THREE.Vector2((galaxySeed * 0.6180339887) % 1, (galaxySeed * 0.4142135624) % 1) },

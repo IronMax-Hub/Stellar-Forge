@@ -3,7 +3,8 @@
 // change on the Python side fails loudly here instead of drawing nonsense.
 
 import { PROVENANCES, SCHEMA_VERSION, TRACK_ARRAYS } from "./types";
-import type { Grid, Meta, Provenance, Reference, Rgb, StellarDocument, Track, TrackArray } from "./types";
+import { REMNANT_TYPES } from "./types";
+import type { Cooling, Grid, Meta, Provenance, Reference, Remnant, RemnantType, Rgb, StellarDocument, Track, TrackArray } from "./types";
 
 type Json = Record<string, unknown>;
 
@@ -70,6 +71,52 @@ function provenance(value: unknown, path: string): Provenance {
   return PROVENANCES.includes(p) ? p : fail(path, `one of ${PROVENANCES.join(", ")}`);
 }
 
+function nullable<T>(value: unknown, path: string, item: (v: unknown, p: string) => T): T | null {
+  return value === null ? null : item(value, path);
+}
+
+function remnantType(value: unknown, path: string): RemnantType {
+  const t = string(value, path) as RemnantType;
+  return REMNANT_TYPES.includes(t) ? t : fail(path, `one of ${REMNANT_TYPES.join(", ")}`);
+}
+
+function parseCooling(value: unknown, path: string): Cooling {
+  const c = object(value, path);
+  const cooling: Cooling = {
+    cooling_age_yr: list(c.cooling_age_yr, `${path}.cooling_age_yr`, number),
+    log_l_lsun: list(c.log_l_lsun, `${path}.log_l_lsun`, number),
+    log_teff_k: list(c.log_teff_k, `${path}.log_teff_k`, number),
+    radius_km: list(c.radius_km, `${path}.radius_km`, number),
+  };
+  for (const name of ["log_l_lsun", "log_teff_k", "radius_km"] as const) {
+    if (cooling[name].length !== cooling.cooling_age_yr.length) fail(`${path}.${name}`, "as long as cooling_age_yr");
+  }
+  return cooling;
+}
+
+function parseRemnant(value: unknown, path: string): Remnant {
+  const r = object(value, path);
+  const alt = object(r.alternative, `${path}.alternative`);
+  return {
+    type: remnantType(r.type, `${path}.type`),
+    mass_msun: nullable(r.mass_msun, `${path}.mass_msun`, number),
+    radius_km: nullable(r.radius_km, `${path}.radius_km`, number),
+    provenance: provenance(r.provenance, `${path}.provenance`),
+    prescription: string(r.prescription, `${path}.prescription`),
+    how: string(r.how, `${path}.how`),
+    alternative: {
+      prescription: string(alt.prescription, `${path}.alternative.prescription`),
+      type: remnantType(alt.type, `${path}.alternative.type`),
+      mass_msun: nullable(alt.mass_msun, `${path}.alternative.mass_msun`, number),
+    },
+    final_mass_msun: nullable(r.final_mass_msun, `${path}.final_mass_msun`, number),
+    he_core_mass_msun: nullable(r.he_core_mass_msun, `${path}.he_core_mass_msun`, number),
+    co_core_mass_msun: nullable(r.co_core_mass_msun, `${path}.co_core_mass_msun`, number),
+    flags: list(r.flags, `${path}.flags`, string),
+    cooling: nullable(r.cooling, `${path}.cooling`, parseCooling),
+  };
+}
+
 function parseTrack(value: unknown, path: string): Track {
   const t = object(value, path);
   const fp = object(t.field_provenance, `${path}.field_provenance`);
@@ -91,6 +138,7 @@ function parseTrack(value: unknown, path: string): Track {
     log_r_rsun: list(t.log_r_rsun, `${path}.log_r_rsun`, number),
     phase: list(t.phase, `${path}.phase`, number),
     rgb: list(t.rgb, `${path}.rgb`, rgb),
+    remnant: parseRemnant(t.remnant, `${path}.remnant`),
   };
   const points = track.age_yr.length;
   for (const name of TRACK_ARRAYS) {

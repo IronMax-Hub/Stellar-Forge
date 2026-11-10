@@ -168,3 +168,33 @@ dd {
 .flags {
   color: #f0b08a;
 }
+
+.hr .cooling {
+  fill: none;
+  stroke: #c9cbe0;
+  stroke-width: 1.2;
+  stroke-dasharray: 4 3;
+}
+
+.remnant h2 {
+  font-weight: 500;
+  font-size: 1.2rem;
+  margin: 0 0 0.4rem;
+}
+
+.remnant p {
+  margin: 0 0 0.75rem;
+  max-width: 50rem;
+}
+
+.bh {
+  margin: 1rem 0 0;
+}
+
+.bh canvas {
+  width: 100%;
+  max-width: 480px;
+  height: 300px;
+  display: block;
+  border-radius: 6px;
+}

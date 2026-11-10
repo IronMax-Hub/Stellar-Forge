@@ -14,10 +14,10 @@ source file's SHA-256.
 | Source | Destination | Source SHA-256 | Changes made to the copy |
 | --- | --- | --- | --- |
 | `src/rendering/starColour.ts` | `web/src/rendering/starColour.ts` | `5d6f730305519a54` | Rewritten to take the exported `rgb`; the temperature-to-colour call is gone. The saturation boost is kept. |
-| `src/rendering/blackHole/BlackHoleView.ts` | `web/src/rendering/blackHole/BlackHoleView.ts` | `7746d7e43b8c1b40` | Types come from `aionStubs.ts`; the horizon radius is read from the input instead of computed; quality defaults to `standard`, the lowest. |
+| `src/rendering/blackHole/BlackHoleView.ts` | `web/src/rendering/blackHole/BlackHoleView.ts` | `7746d7e43b8c1b40` | Types come from `aionStubs.ts`; the horizon radius is read from the input instead of computed; quality defaults to `standard`, the lowest. Phase 2: a `gas` uniform, off for accretion mode `none` (an isolated stellar black hole). |
 | `src/rendering/blackHole/quality.ts` | `web/src/rendering/blackHole/quality.ts` | `1e6a807974fa1b0d` | Import path only. |
 | `src/rendering/blackHole/shaders/blackHole.vert.glsl` | `web/src/rendering/blackHole/shaders/blackHole.vert.glsl` | `6e41d740153c6e2f` | None. |
-| `src/rendering/blackHole/shaders/blackHole.frag.glsl` | `web/src/rendering/blackHole/shaders/blackHole.frag.glsl` | `36ba985d76fe352b` | None. |
+| `src/rendering/blackHole/shaders/blackHole.frag.glsl` | `web/src/rendering/blackHole/shaders/blackHole.frag.glsl` | `36ba985d76fe352b` | Phase 2: a `gas` uniform; at 0 no disc or hot flow is drawn, only the lensed sky. |
 | `src/rendering/systemView.ts` | `web/src/rendering/system/systemView.ts` | `4f3351fa9de95265` | Import paths only. |
 | `src/rendering/systemLayout.ts` | `web/src/rendering/system/systemLayout.ts` | `eb9f86c4583f942d` | The orbit is read in AU as exported; `effectiveOrbitAU` and the `config` parameter are gone. |
 | `src/rendering/planet/PlanetView.ts` | `web/src/rendering/planet/PlanetView.ts` | `f537485df52250d4` | City lights and the orbital shell removed (life simulation). Star colour, glow colour and star spectrum are read from the inputs instead of computed from temperature. |

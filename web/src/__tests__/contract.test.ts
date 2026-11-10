@@ -38,4 +38,14 @@ describe("data contract", () => {
     (firstTrack(uneven).log_l_lsun as number[]).pop();
     expect(() => parseDocument(uneven)).toThrow(/tracks\[0\]\.log_l_lsun/);
   });
+
+  it("accepts a remnant without mass and rejects an unknown remnant type", () => {
+    const remnant = (raw: Raw) => (raw.grid.tracks as Record<string, Record<string, unknown>>[])[0].remnant;
+    const none = fixture();
+    Object.assign(remnant(none), { type: "not yet", mass_msun: null, radius_km: null, cooling: null });
+    expect(parseDocument(none).grid.tracks[0].remnant.mass_msun).toBeNull();
+    const odd = fixture();
+    remnant(odd).type = "quark star";
+    expect(() => parseDocument(odd)).toThrow(/remnant\.type/);
+  });
 });

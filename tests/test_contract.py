@@ -10,22 +10,47 @@ from stellarforge import SCHEMA_VERSION, evolution, export
 FIXTURE = json.loads((Path(__file__).parent.parent / "contract" / "fixture.json").read_text())
 
 
-# Objects whose keys vary between documents (contract/README.md: "object of ..."); they are
-# described by their value type alone.
+# Objects whose keys vary between documents (contract/README.md: "object of ..."); every value must
+# match the fixture's value kind.
 MAPS = {"inputs", "models", "phase_names"}
+# Remnant fields that are null when there is no remnant or MIST gives no value.
+NULLABLE = {"mass_msun", "radius_km", "cooling", "final_mass_msun", "he_core_mass_msun",
+            "co_core_mass_msun"}
 
 
-def shape(value, key=None):
-    """Keys and value types, recursively; a list is described by its first element."""
-    if isinstance(value, dict) and key in MAPS:
-        return {"*": sorted({str(shape(v)) for v in value.values()})}
-    if isinstance(value, dict):
-        return {k: shape(v, k) for k, v in sorted(value.items())}
-    if isinstance(value, list):
-        return [shape(value[0])] if value else []
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        return "number"
-    return type(value).__name__
+def kind(value):
+    return "number" if isinstance(value, (int, float)) and not isinstance(value, bool) else \
+        type(value).__name__
+
+
+def assert_shape(actual, expected, path="document", key=None):
+    """Same keys and value kinds as the fixture, recursively; every list item is checked against
+    the fixture's first item."""
+    if key in NULLABLE and (actual is None or expected is None):
+        return
+    if isinstance(expected, dict) and key in MAPS:
+        assert isinstance(actual, dict), path
+        kinds = {kind(v) for v in expected.values()}
+        assert all(kind(v) in kinds for v in actual.values()), path
+    elif isinstance(expected, dict):
+        assert isinstance(actual, dict), f"{path}: {kind(actual)}, expected an object"
+        assert set(actual) == set(expected), f"{path}: keys differ by {set(actual) ^ set(expected)}"
+        for k in expected:
+            assert_shape(actual[k], expected[k], f"{path}.{k}", k)
+    elif isinstance(expected, list):
+        assert isinstance(actual, list), f"{path}: {kind(actual)}, expected a list"
+        for i, item in enumerate(actual if expected else []):
+            assert_shape(item, expected[0], f"{path}[{i}]")
+    else:
+        assert kind(actual) == kind(expected), f"{path}: {kind(actual)}, expected {kind(expected)}"
+
+
+REMNANT = {
+    "type": "neutron star", "mass_msun": 1.4, "radius_km": 12.0, "provenance": "predicted",
+    "prescription": "test", "how": "test", "final_mass_msun": 11.0, "he_core_mass_msun": 3.0,
+    "co_core_mass_msun": 2.0, "flags": ["test"], "cooling": None,
+    "alternative": {"prescription": "test", "type": "neutron star", "mass_msun": 1.3},
+}
 
 
 def exported_document():
@@ -38,6 +63,7 @@ def exported_document():
         phase_names={-1: "pre-main sequence", 0: "main sequence"},
         age_yr=[1, 2], mass_now_msun=[2, 1.9], log_l_lsun=[0, 1], log_teff_k=[3.7, 3.8],
         log_r_rsun=[0, 0.1], phase=[0, 2], rgb=[[1, 1, 1], [1, 0.9, 0.8]],
+        remnant=REMNANT,
     )
     grid = export.build_grid(feh=-0.5, feh_values=[-0.5], mass_values_msun=[2.0],
                              files=["f.json"], tracks=[track])
@@ -45,14 +71,14 @@ def exported_document():
 
 
 def test_export_matches_fixture_shape():
-    assert shape(exported_document()) == shape(FIXTURE)
+    assert_shape(exported_document(), FIXTURE)
 
 
 @pytest.mark.skipif(not list(evolution.GRIDS.glob("*.npz")),
                     reason="MIST grid not converted; run `make data`")
 def test_real_web_export_matches_fixture_shape():
     document = export.web_document(0.0)
-    assert shape(document) == shape(FIXTURE)
+    assert_shape(document, FIXTURE)
     for track in document["grid"]["tracks"]:
         # Ages are exported unrounded: some MIST points are microseconds apart, and rounding merged
         # them. Ties left are MIST's own (e.g. 2.22 M☉ at [Fe/H] -4.0).
@@ -86,8 +112,10 @@ def test_bad_tracks_are_rejected():
     good = {"mass_msun": 1, "feh": 0, "method": "m", "ending": "e", "age_yr": [1],
             "mass_now_msun": [1], "log_l_lsun": [0], "log_teff_k": [3.7], "log_r_rsun": [0],
             "phase": [0], "rgb": [[1, 1, 1]], "provenance": "derived", "flags": [],
-            "phase_names": {0: "main sequence"}}
+            "phase_names": {0: "main sequence"}, "remnant": REMNANT}
     with pytest.raises(ValueError):
         export.build_track(**{**good, "age_yr": [1, 2]})
     with pytest.raises(ValueError):
         export.build_track(**{**good, "provenance": "guessed"})
+    with pytest.raises(ValueError):
+        export.build_track(**{**good, "remnant": {**REMNANT, "type": "quark star"}})

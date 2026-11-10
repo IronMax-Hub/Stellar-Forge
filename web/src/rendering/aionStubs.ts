@@ -91,7 +91,8 @@ export interface PlanetPhysics {
   tidallyLocked: boolean;
 }
 
-export type AccretionMode = "thin-disc" | "hot-flow";
+/** "none": an isolated stellar black hole with no gas, so only the lensed sky shows. */
+export type AccretionMode = "thin-disc" | "hot-flow" | "none";
 export type GalaxyType = "spiral" | "elliptical" | "irregular";
 
 export interface CentralBlackHole {

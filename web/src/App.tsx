@@ -3,8 +3,11 @@
 // this file only selects, scales and draws.
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { parseDocument } from "./data/loader";
-import type { Provenance, StellarDocument, Track } from "./data/types";
+import type { Provenance, Remnant, StellarDocument, Track } from "./data/types";
+import { BLACK_HOLE_DISTANCE, BlackHoleView, START_ELEVATION_DEG } from "./rendering/blackHole/BlackHoleView";
 import { starDisplayCss } from "./rendering/starColour";
 
 const DATA = `${import.meta.env.BASE_URL}data/`;
@@ -103,19 +106,22 @@ export default function App() {
 
       <PhaseTimeline track={track} point={i} onPick={setPoint} />
       <Numbers track={track} point={i} />
+      <RemnantCard remnant={track.remnant} />
     </main>
   );
 }
 
 function HrDiagram({ track, point }: { track: Track; point: number }) {
   const W = 460, H = 340, PAD = 44;
-  const { x, y, path, xTicks, yTicks } = useMemo(() => {
+  const cooling = track.remnant.cooling;
+  const { x, y, path, coolingPath, xTicks, yTicks } = useMemo(() => {
     const extent = (v: number[]) => {
       const lo = Math.min(...v), hi = Math.max(...v), pad = Math.max(0.05, (hi - lo) * 0.06);
       return [lo - pad, hi + pad];
     };
-    const [t0, t1] = extent(track.log_teff_k);
-    const [l0, l1] = extent(track.log_l_lsun);
+    // The white dwarf's cooling track widens the axes, so both fit
+    const [t0, t1] = extent([...track.log_teff_k, ...(cooling?.log_teff_k ?? [])]);
+    const [l0, l1] = extent([...track.log_l_lsun, ...(cooling?.log_l_lsun ?? [])]);
     // Hot stars on the left, as in every HR diagram
     const x = (t: number) => PAD + ((t1 - t) / (t1 - t0)) * (W - PAD - 10);
     const y = (l: number) => 10 + ((l1 - l) / (l1 - l0)) * (H - PAD - 10);
@@ -125,9 +131,11 @@ function HrDiagram({ track, point }: { track: Track; point: number }) {
       for (let v = Math.ceil(a / step) * step; v <= b; v += step) out.push(+v.toFixed(2));
       return out;
     };
-    const path = track.log_teff_k.map((t, k) => `${k ? "L" : "M"}${x(t).toFixed(1)},${y(track.log_l_lsun[k]).toFixed(1)}`).join("");
-    return { x, y, path, xTicks: ticks(t0, t1), yTicks: ticks(l0, l1) };
-  }, [track]);
+    const line = (ts: number[], ls: number[]) => ts.map((t, k) => `${k ? "L" : "M"}${x(t).toFixed(1)},${y(ls[k]).toFixed(1)}`).join("");
+    const path = line(track.log_teff_k, track.log_l_lsun);
+    const coolingPath = cooling ? line(cooling.log_teff_k, cooling.log_l_lsun) : null;
+    return { x, y, path, coolingPath, xTicks: ticks(t0, t1), yTicks: ticks(l0, l1) };
+  }, [track, cooling]);
 
   return (
     <svg className="hr" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Hertzsprung–Russell diagram of the track">
@@ -141,6 +149,7 @@ function HrDiagram({ track, point }: { track: Track; point: number }) {
       <text x={(W + PAD) / 2} y={H - 6} textAnchor="middle">log T_eff (K)</text>
       <text transform={`translate(12 ${(H - PAD) / 2}) rotate(-90)`} textAnchor="middle">log L (L☉)</text>
       <path d={path} className="track" />
+      {coolingPath && <path d={coolingPath} className="cooling"><title>White-dwarf cooling (Bédard et al. 2020)</title></path>}
       <circle cx={x(track.log_teff_k[point])} cy={y(track.log_l_lsun[point])} r={6}
         fill={starDisplayCss(track.rgb[point])} stroke="#fff" />
     </svg>
@@ -217,5 +226,88 @@ function Numbers({ track, point }: { track: Track; point: number }) {
         {track.flags.length > 0 && <div><dt>Warnings</dt><dd className="flags">{track.flags.join("; ")}</dd></div>}
       </dl>
     </section>
+  );
+}
+
+const REMNANT_TITLES: Record<Remnant["type"], string> = {
+  "white dwarf": "White dwarf", "neutron star": "Neutron star", "black hole": "Black hole",
+  none: "No remnant", "not yet": "No remnant yet", "not predicted": "Not predicted",
+};
+
+function RemnantCard({ remnant }: { remnant: Remnant }) {
+  const r = remnant;
+  const mass = (m: number | null) => (m === null ? "—" : `${m} M☉`);
+  return (
+    <section aria-label="Remnant" className="remnant">
+      <h2>{REMNANT_TITLES[r.type]}{r.mass_msun !== null && <> · {r.mass_msun} M☉ <Label p={r.provenance} /></>}</h2>
+      <p>{r.how}</p>
+      <dl>
+        {r.radius_km !== null && (
+          <div><dt>{r.type === "black hole" ? "Horizon radius" : r.type === "white dwarf" ? "Radius (cooled)" : "Radius"}</dt><dd>{r.radius_km} km</dd></div>
+        )}
+        <div><dt>Prescription</dt><dd>{r.prescription}</dd></div>
+        <div><dt>Alternative</dt><dd>{r.alternative.prescription}: {r.alternative.type}, {mass(r.alternative.mass_msun)}</dd></div>
+        <div><dt>Final mass · helium core · CO core</dt><dd>{mass(r.final_mass_msun)} · {mass(r.he_core_mass_msun)} · {mass(r.co_core_mass_msun)}</dd></div>
+        {r.cooling && <div><dt>Cooling (Bédard et al. 2020)</dt><dd>dashed on the HR diagram, to {(r.cooling.cooling_age_yr[r.cooling.cooling_age_yr.length - 1] / 1e9).toPrecision(3)} Gyr</dd></div>}
+        <div><dt>Warnings</dt><dd className="flags">{r.flags.join("; ")}</dd></div>
+      </dl>
+      <BlackHoleCanvas show={r.type === "black hole"} />
+    </section>
+  );
+}
+
+/**
+ * The copied lensing view at its lowest quality, redrawn only when the camera moves. It works in
+ * horizon radii, so every black hole looks the same from the same distance; it is built once, on the
+ * first black hole shown (a WebGL context and a shader compile cost ~0.5 s), then only hidden.
+ */
+function BlackHoleCanvas({ show }: { show: boolean }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [built, setBuilt] = useState(show);
+  if (show && !built) setBuilt(true);
+  useEffect(() => {
+    if (!built) return;
+    let cleanup = () => {};
+    // After this frame paints, so the slider that showed the black hole is not held up
+    const timer = setTimeout(() => {
+      const canvas = document.createElement("canvas");
+      canvas.setAttribute("aria-label", "Gravitational lensing of the background sky by the black hole");
+      ref.current!.append(canvas);
+      const renderer = new THREE.WebGLRenderer({ canvas });
+      renderer.setPixelRatio(1);
+      renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+      const camera = new THREE.PerspectiveCamera(40, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
+      const elevation = THREE.MathUtils.degToRad(START_ELEVATION_DEG);
+      camera.position.set(0, Math.sin(elevation), Math.cos(elevation)).multiplyScalar(BLACK_HOLE_DISTANCE.start);
+      const controls = new OrbitControls(camera, canvas);
+      controls.minDistance = BLACK_HOLE_DISTANCE.min;
+      controls.maxDistance = BLACK_HOLE_DISTANCE.max;
+      // No gas around an isolated stellar black hole; the horizon radius only sets the view's km scale,
+      // which this page does not draw. The seed only places the background stars.
+      const view = new BlackHoleView({ horizonRadiusKm: 1, accretionMode: "none", discPeakTemperatureK: 0 }, 0.37, "spiral", false, performance.now(), "standard");
+      const draw = () => view.render(renderer, camera, performance.now());
+      controls.addEventListener("change", draw);
+      draw();
+      cleanup = () => {
+        controls.dispose();
+        view.dispose();
+        renderer.dispose();
+        renderer.forceContextLoss();
+        canvas.remove();
+      };
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+      cleanup();
+    };
+  }, [built]);
+  return (
+    <figure className="bh" hidden={!show}>
+      <div ref={ref} />
+      <figcaption className="note">
+        Light bent by the black hole, seen from {BLACK_HOLE_DISTANCE.start} horizon radii (drag to orbit). Every black hole looks
+        the same at the same distance in horizon radii; its background sky is illustrative.
+      </figcaption>
+    </figure>
   );
 }

@@ -22,6 +22,12 @@ REPORT = Path(__file__).parent.parent / "documentation" / "data" / "MIST interpo
 # Endings after which nothing more happens to the star in MIST, and the one it has not reached yet.
 FINAL_ENDINGS = ("white-dwarf cooling sequence", "end of core carbon burning")
 MS_END = "end of main sequence"
+CARBON_END = "end of core carbon burning"
+# Many MIST v1.2 tracks reach the end of carbon burning with a helium-free centre but report a
+# zero CO-core (or helium-core) mass; such endings are kept apart, so they never blend with tracks
+# whose core masses are known (their remnants need those masses).
+NO_CO_CORE = CARBON_END + ", CO-core mass missing in MIST"
+NO_HE_CORE = CARBON_END + ", helium-core mass missing in MIST"
 UNIVERSE_AGE_YR = 13.8e9
 
 
@@ -59,6 +65,13 @@ def load_grid(directory: Path = GRIDS) -> Grid:
     masses = parts[0]["masses_msun"]
     if any(not np.array_equal(p["masses_msun"], masses) for p in parts):
         raise ValueError("the MIST mass grid differs between metallicities")
+    columns = [str(c) for c in parts[0]["columns"]]
+    he, co = columns.index("he_core_mass_msun"), columns.index("c_core_mass_msun")
+    for p in parts:
+        last = p["data"][np.arange(len(masses)), p["n_rows"] - 1]
+        carbon = p["ending"] == CARBON_END
+        p["ending"] = np.where(carbon & (last[:, co] <= 0), NO_CO_CORE, p["ending"])
+        p["ending"] = np.where(carbon & (last[:, he] <= 0), NO_HE_CORE, p["ending"])
     return Grid(
         fehs=np.array([float(p["feh"]) for p in parts]), masses_msun=masses,
         columns=tuple(str(c) for c in parts[0]["columns"]), data=tuple(p["data"] for p in parts),
@@ -107,6 +120,8 @@ class Track:
 def _ending_flags(ending: str) -> list[str]:
     if ending in FINAL_ENDINGS:
         return []
+    if ending.startswith(CARBON_END):
+        return ["core_mass_missing_in_mist"]
     if ending == MS_END:
         return ["still_on_main_sequence_at_track_end"]
     return [f"track_incomplete: stops at {ending}"]

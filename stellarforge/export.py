@@ -9,7 +9,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import SCHEMA_VERSION, __version__, evolution
+from . import SCHEMA_VERSION, __version__, evolution, remnants
 from .colour import temperature_to_rgb
 
 PROVENANCE = ("published", "interpolated", "derived", "predicted")
@@ -51,7 +51,7 @@ def _round(values, digits: int) -> list[float]:
 
 def build_track(*, mass_msun: float, feh: float, method: str, provenance: str, ending: str,
                 flags: list[str], phase_names: dict[int, str], age_yr, mass_now_msun, log_l_lsun,
-                log_teff_k, log_r_rsun, phase, rgb) -> dict:
+                log_teff_k, log_r_rsun, phase, rgb, remnant: dict) -> dict:
     """One star's track. Arrays must be equally long; rgb is one [r, g, b] (sRGB, 0-1) per point.
     MIST values carry the track's provenance; the colour is always derived by Stellar-Forge."""
     if provenance not in PROVENANCE:
@@ -74,11 +74,45 @@ def build_track(*, mass_msun: float, feh: float, method: str, provenance: str, e
         "log_r_rsun": _round(log_r_rsun, 5),
         "phase": [round(float(x)) for x in phase],
         "rgb": [_round(p, 4) for p in rgb],
+        "remnant": build_remnant(**remnant),
     }
     lengths = {name: len(track[name]) for name in TRACK_ARRAYS}
     if len(set(lengths.values())) != 1 or any(len(p) != 3 for p in track["rgb"]):
         raise ValueError(f"track arrays must be equally long with 3-channel rgb, got {lengths}")
     return track
+
+
+REMNANT_TYPES = ("white dwarf", "neutron star", "black hole", "none", "not yet", "not predicted")
+COOLING_ARRAYS = ("cooling_age_yr", "log_l_lsun", "log_teff_k", "radius_km")
+
+
+def _maybe(x, digits=4):
+    return None if x is None else float(f"{x:.{digits}g}")
+
+
+def build_remnant(*, type: str, mass_msun, radius_km, provenance: str, prescription: str,
+                  how: str, alternative: dict, final_mass_msun, he_core_mass_msun,
+                  co_core_mass_msun, flags: list[str], cooling: dict | None) -> dict:
+    """A star's remnant (stellarforge.remnants.Remnant.as_dict()). mass, radius and cooling are
+    null when there is no remnant; the alternative is the other prescription's answer."""
+    if type not in REMNANT_TYPES or alternative["type"] not in REMNANT_TYPES:
+        raise ValueError(f"remnant type must be one of {REMNANT_TYPES}")
+    if provenance not in PROVENANCE:
+        raise ValueError(f"provenance must be one of {PROVENANCE}, got {provenance!r}")
+    if cooling is not None and len({len(cooling[k]) for k in COOLING_ARRAYS}) != 1:
+        raise ValueError("cooling arrays must be equally long")
+    return {
+        "type": type, "mass_msun": _maybe(mass_msun), "radius_km": _maybe(radius_km),
+        "provenance": provenance, "prescription": prescription, "how": how,
+        "alternative": {"prescription": alternative["prescription"], "type": alternative["type"],
+                        "mass_msun": _maybe(alternative["mass_msun"])},
+        # NaN marks a core mass MIST does not give; JSON has no NaN, so it is exported as null
+        **{k: _maybe(None if np.isnan(v) else v) for k, v in (
+            ("final_mass_msun", final_mass_msun), ("he_core_mass_msun", he_core_mass_msun),
+            ("co_core_mass_msun", co_core_mass_msun))},
+        "flags": list(flags),
+        "cooling": None if cooling is None else {k: _round(cooling[k], 5) for k in COOLING_ARRAYS},
+    }
 
 
 def build_grid(*, feh: float, feh_values, mass_values_msun, files: list[str],
@@ -130,10 +164,12 @@ def web_track(mass_msun: float, feh: float) -> dict:
                       t.primary_eep_rows)
     return build_track(
         mass_msun=mass_msun, feh=feh, method=t.method, provenance=t.provenance, ending=t.ending,
-        flags=t.flags, phase_names=t.phase_names, age_yr=v["age_yr"][keep], mass_now_msun=v["mass_msun"][keep],
+        flags=t.flags, phase_names=t.phase_names, age_yr=v["age_yr"][keep],
+        mass_now_msun=v["mass_msun"][keep],
         log_l_lsun=v["log_l_lsun"][keep], log_teff_k=v["log_teff_k"][keep],
         log_r_rsun=v["log_r_rsun"][keep], phase=v["phase"][keep],
         rgb=temperature_to_rgb(10 ** v["log_teff_k"][keep]),
+        remnant=remnants.remnant(t, mass_msun).as_dict(),
     )
 
 
@@ -141,8 +177,15 @@ def web_document(feh: float) -> dict:
     meta = build_meta(
         dataset=DATASET,
         models={"track": "MIST v1.2 EEP tracks, bilinear EEP interpolation in log mass and [Fe/H]",
-                "colour": "Helland blackbody fit, ported from Aion Forge"},
-        inputs={"feh": float(feh)}, reference_keys=["Choi2016", "Dotter2016", "Paxton2011"],
+                "colour": "Helland blackbody fit, ported from Aion Forge",
+                "remnant": "fryer2012-delayed (alternative fryer2012-rapid); "
+                           "belczynski2016-m10 pair instability",
+                "white_dwarf_mass": "MIST final mass (alternative cummings2018-mist-ifmr)",
+                "white_dwarf_cooling": "bedard2020-thick-h"},
+        inputs={"feh": float(feh)},
+        reference_keys=["Choi2016", "Dotter2016", "Paxton2011", "Fryer2012", "Belczynski2016",
+                        "HegerWoosley2002", "Cummings2018", "Bedard2020", "Poelarends2008",
+                        "OzelFreire2016", "Prsa2016", "Sana2012"],
     )
     grid = build_grid(
         feh=feh, feh_values=WEB_FEHS, mass_values_msun=_round(WEB_MASSES_MSUN, 5),

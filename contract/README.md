@@ -7,7 +7,7 @@ web loader parses it. Both assert the same `schema_version`. The tests check sha
 Changing the format: edit the fixture, raise `schema_version` by one in the fixture,
 `stellarforge/__init__.py` and `web/src/data/types.ts`, and update both sides until both tests pass.
 
-Schema version 2 (Phase 1: the `track` block moved inside a `grid` block). The fixture's numbers are hand-written test data, not physics.
+Schema version 3 (Phase 2: each track carries its `remnant`; version 2 moved `track` inside `grid`). The fixture's numbers are hand-written test data, not physics.
 
 ## `meta` — carried by every export
 
@@ -56,6 +56,25 @@ All arrays have one entry per track point and the same length.
 | `log_r_rsun` | numbers | log10 of radius in solar radii |
 | `phase` | integers | MIST phase number; see `phase_names` |
 | `rgb` | `[r, g, b]` triples | the star's display colour, sRGB, each channel 0–1 |
+| `remnant` | `remnant` | what the star leaves behind |
+
+## `remnant` — what a star leaves behind (`stellarforge/remnants.py`)
+
+Fields marked "or null" are null when there is no remnant or MIST gives no value.
+
+| Field | Type | Unit or meaning |
+| --- | --- | --- |
+| `type` | `white dwarf`, `neutron star`, `black hole`, `none`, `not yet` or `not predicted` | `none`: destroyed by a pair-instability supernova; `not yet`: still on the main sequence where its track ends; `not predicted`: the track stops too early, or lacks a core mass |
+| `mass_msun` | number or null | remnant (gravitational) mass, M☉ |
+| `radius_km` | number or null | white dwarf: radius at the end of its cooling track; neutron star: 12 km; black hole: horizon radius |
+| `provenance` | provenance | `predicted` for core collapse; the track's provenance for a white dwarf's MIST mass; `derived` when there is no remnant |
+| `prescription` | string | the rule that gave `type` and `mass_msun` |
+| `how` | string | how it formed, in a sentence |
+| `alternative.prescription`, `.type`, `.mass_msun` | string, type, number or null | the other prescription's answer (rapid for delayed; Cummings et al. 2018 for a white dwarf) |
+| `final_mass_msun`, `he_core_mass_msun`, `co_core_mass_msun` | number or null | the track's last state, M☉; null where MIST gives no core mass |
+| `flags` | list of strings | validity warnings; always includes `single_star_assumed` |
+| `cooling` | object or null | white dwarfs: `cooling_age_yr`, `log_l_lsun`, `log_teff_k`, `radius_km`, equally long |
+
 
 Field names end in their unit (`_msun`, `_lsun`, `_rsun`, `_k`, `_yr`, `_au`, `_mearth`) and logs
 start with `log_`.

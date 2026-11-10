@@ -1,6 +1,6 @@
 {
  "meta": {
-  "schema_version": 2,
+  "schema_version": 3,
   "generator": {
    "name": "stellarforge",
    "version": "0.1.0",
@@ -106,7 +106,45 @@
       0.93,
       0.87
      ]
-    ]
+    ],
+    "remnant": {
+     "type": "white dwarf",
+     "mass_msun": 0.54,
+     "radius_km": 8800.0,
+     "provenance": "derived",
+     "prescription": "hand-written",
+     "how": "Hand-written test remnant.",
+     "alternative": {
+      "prescription": "hand-written",
+      "type": "white dwarf",
+      "mass_msun": 0.57
+     },
+     "final_mass_msun": 0.54,
+     "he_core_mass_msun": 0.54,
+     "co_core_mass_msun": 0.53,
+     "flags": [
+      "single_star_assumed",
+      "hand_written_test_data"
+     ],
+     "cooling": {
+      "cooling_age_yr": [
+       100000.0,
+       1000000000.0
+      ],
+      "log_l_lsun": [
+       1.0,
+       -3.0
+      ],
+      "log_teff_k": [
+       4.9,
+       3.9
+      ],
+      "radius_km": [
+       12000.0,
+       8800.0
+      ]
+     }
+    }
    }
   ]
  }

@@ -45,6 +45,7 @@ uniform float aspect;
 uniform float time;             // display seconds, scaled into orbits by orbitRate
 uniform float orbitRate;        // turns of the disc's inner edge per display second
 uniform float thinDisc;         // 1: thin disc; 0: hot flow
+uniform float gas;              // 0: no gas at all (an isolated stellar black hole): only the lensed sky
 uniform float peakTemperatureK;
 uniform vec2 seed;              // the galaxy's, for the gas's streaks and the sky's stars
 uniform float galaxyKind;       // the host galaxy, whose stars fill the sky: 0 spiral, 1 elliptical, 2 irregular
@@ -346,7 +347,9 @@ void main() {
         vec3 nextAcc = -1.5 * h2 * nextPos / (nr2 * nr2 * nr);
         vec3 nextVel = vel + 0.5 * (acc + nextAcc) * dt;
 
-        if (thinDisc > 0.5) {
+        if (gas < 0.5) {
+          // No gas: the ray only bends
+        } else if (thinDisc > 0.5) {
           // The disc lies in the plane y = 0: add its light where the ray crosses it
           if (pos.y * nextPos.y < 0.0) {
             vec3 p = mix(pos, nextPos, pos.y / (pos.y - nextPos.y));
