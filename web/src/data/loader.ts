@@ -2,8 +2,8 @@
 // A wrong shape or schema version throws with the field's path, so a format
 // change on the Python side fails loudly here instead of drawing nonsense.
 
-import { PROVENANCES, SCHEMA_VERSION } from "./types";
-import type { Meta, Provenance, Reference, Rgb, StellarDocument, Track } from "./types";
+import { PROVENANCES, SCHEMA_VERSION, TRACK_ARRAYS } from "./types";
+import type { Grid, Meta, Provenance, Reference, Rgb, StellarDocument, Track, TrackArray } from "./types";
 
 type Json = Record<string, unknown>;
 
@@ -65,28 +65,56 @@ function parseMeta(value: unknown): Meta {
   };
 }
 
-function parseTrack(value: unknown): Track {
-  const t = object(value, "track");
-  const provenance = string(t.provenance, "track.provenance") as Provenance;
-  if (!PROVENANCES.includes(provenance)) fail("track.provenance", `one of ${PROVENANCES.join(", ")}`);
+function provenance(value: unknown, path: string): Provenance {
+  const p = string(value, path) as Provenance;
+  return PROVENANCES.includes(p) ? p : fail(path, `one of ${PROVENANCES.join(", ")}`);
+}
+
+function parseTrack(value: unknown, path: string): Track {
+  const t = object(value, path);
+  const fp = object(t.field_provenance, `${path}.field_provenance`);
   const track: Track = {
-    provenance,
-    flags: list(t.flags, "track.flags", string),
-    age_yr: list(t.age_yr, "track.age_yr", number),
-    log_l_lsun: list(t.log_l_lsun, "track.log_l_lsun", number),
-    log_teff_k: list(t.log_teff_k, "track.log_teff_k", number),
-    log_r_rsun: list(t.log_r_rsun, "track.log_r_rsun", number),
-    rgb: list(t.rgb, "track.rgb", rgb),
+    mass_msun: number(t.mass_msun, `${path}.mass_msun`),
+    feh: number(t.feh, `${path}.feh`),
+    method: string(t.method, `${path}.method`),
+    provenance: provenance(t.provenance, `${path}.provenance`),
+    ending: string(t.ending, `${path}.ending`),
+    flags: list(t.flags, `${path}.flags`, string),
+    phase_names: record(t.phase_names, `${path}.phase_names`, string),
+    field_provenance: Object.fromEntries(
+      TRACK_ARRAYS.map((k) => [k, provenance(fp[k], `${path}.field_provenance.${k}`)]),
+    ) as Record<TrackArray, Provenance>,
+    age_yr: list(t.age_yr, `${path}.age_yr`, number),
+    mass_now_msun: list(t.mass_now_msun, `${path}.mass_now_msun`, number),
+    log_l_lsun: list(t.log_l_lsun, `${path}.log_l_lsun`, number),
+    log_teff_k: list(t.log_teff_k, `${path}.log_teff_k`, number),
+    log_r_rsun: list(t.log_r_rsun, `${path}.log_r_rsun`, number),
+    phase: list(t.phase, `${path}.phase`, number),
+    rgb: list(t.rgb, `${path}.rgb`, rgb),
   };
   const points = track.age_yr.length;
-  for (const name of ["log_l_lsun", "log_teff_k", "log_r_rsun", "rgb"] as const) {
-    if (track[name].length !== points) fail(`track.${name}`, `${points} entries long, like track.age_yr`);
+  for (const name of TRACK_ARRAYS) {
+    if (track[name].length !== points) fail(`${path}.${name}`, `${points} entries long, like ${path}.age_yr`);
   }
   return track;
+}
+
+function parseGrid(value: unknown): Grid {
+  const g = object(value, "grid");
+  const grid: Grid = {
+    feh: number(g.feh, "grid.feh"),
+    feh_values: list(g.feh_values, "grid.feh_values", number),
+    mass_values_msun: list(g.mass_values_msun, "grid.mass_values_msun", number),
+    files: list(g.files, "grid.files", string),
+    tracks: list(g.tracks, "grid.tracks", parseTrack),
+  };
+  if (grid.files.length !== grid.feh_values.length) fail("grid.files", "one file per grid.feh_values entry");
+  if (grid.tracks.length !== grid.mass_values_msun.length) fail("grid.tracks", "one track per grid.mass_values_msun entry");
+  return grid;
 }
 
 /** A typed document from parsed JSON; throws if any field is missing or of the wrong type. */
 export function parseDocument(raw: unknown): StellarDocument {
   const doc = object(raw, "document");
-  return { meta: parseMeta(doc.meta), track: parseTrack(doc.track) };
+  return { meta: parseMeta(doc.meta), grid: parseGrid(doc.grid) };
 }

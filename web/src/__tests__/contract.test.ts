@@ -6,14 +6,16 @@ import { describe, expect, it } from "vitest";
 import { parseDocument } from "../data/loader";
 import { SCHEMA_VERSION } from "../data/types";
 
-const fixture = (): Record<string, Record<string, unknown>> =>
+type Raw = Record<string, Record<string, unknown>>;
+const fixture = (): Raw =>
   JSON.parse(readFileSync(new URL("../../../contract/fixture.json", import.meta.url), "utf8"));
 
 describe("data contract", () => {
   it("parses the shared fixture", () => {
     const doc = parseDocument(fixture());
     expect(doc.meta.schema_version).toBe(SCHEMA_VERSION);
-    expect(doc.track.rgb).toHaveLength(doc.track.age_yr.length);
+    const track = doc.grid.tracks[0];
+    expect(track.rgb).toHaveLength(track.age_yr.length);
     expect(doc.meta.references[0].doi).toMatch(/^10\./);
   });
 
@@ -28,11 +30,12 @@ describe("data contract", () => {
   });
 
   it("rejects a wrong field type and uneven arrays", () => {
+    const firstTrack = (raw: Raw) => (raw.grid.tracks as Record<string, unknown>[])[0];
     const wrongType = fixture();
-    wrongType.track.age_yr = ["old"];
-    expect(() => parseDocument(wrongType)).toThrow(/track\.age_yr\[0\]/);
+    firstTrack(wrongType).age_yr = ["old"];
+    expect(() => parseDocument(wrongType)).toThrow(/tracks\[0\]\.age_yr\[0\]/);
     const uneven = fixture();
-    (uneven.track.log_l_lsun as number[]).pop();
-    expect(() => parseDocument(uneven)).toThrow(/track\.log_l_lsun/);
+    (firstTrack(uneven).log_l_lsun as number[]).pop();
+    expect(() => parseDocument(uneven)).toThrow(/tracks\[0\]\.log_l_lsun/);
   });
 });

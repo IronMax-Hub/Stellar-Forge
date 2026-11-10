@@ -49,7 +49,7 @@ CLAIMS = {
     "OzelFreire2016": [r"1\.1|2\.0|km|mass"],
     "Riley2019": [r"km|radius"],
     "Miller2019": [r"km|radius"],
-    "LambrechtsJohansen2012".replace("J", "J"): [r"pebble"],
+    "LambrechtsJohansen2012": [r"pebble"],
     "Emsenhuber2021": [r"population|Bern"],
 }
 

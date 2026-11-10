@@ -1,9 +1,8 @@
 # One command per job; see documentation/Stellar-Forge Build Plan.md.
-# `make data` and `make export` arrive with Phase 1, when there is data to fetch and export.
 
 UV := $(shell command -v uv || echo $(HOME)/.local/bin/uv)
 
-.PHONY: setup check dev bench
+.PHONY: setup check dev bench data export
 
 setup:
 	$(UV) sync
@@ -20,3 +19,13 @@ dev:
 
 bench:
 	OMP_NUM_THREADS=1 .venv/bin/python scripts/bench.py
+
+# MIST v1.2 archives (~1.5 GB, resumable) and their compact grids in ~/.cache/stellar-forge/.
+data:
+	.venv/bin/python scripts/fetch_mist.py all
+	.venv/bin/python -m stellarforge.mist convert
+
+# The Star Builder grid in web/public/data/ (about 120 MB), plus the Phase 1 reports.
+export:
+	OMP_NUM_THREADS=1 .venv/bin/python -m stellarforge.export web
+	.venv/bin/python -m stellarforge.evolution check

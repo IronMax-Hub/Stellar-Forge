@@ -2,7 +2,7 @@
 // Python writes these values; nothing here computes one.
 
 /** Must equal SCHEMA_VERSION in stellarforge/__init__.py and the fixture's meta.schema_version. */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export type Provenance = "published" | "interpolated" | "derived" | "predicted";
 export const PROVENANCES: readonly Provenance[] = ["published", "interpolated", "derived", "predicted"];
@@ -26,17 +26,39 @@ export interface Meta {
   references: Reference[];
 }
 
+/** The arrays of a track, each one entry per point; `field_provenance` labels each. */
+export const TRACK_ARRAYS = ["age_yr", "mass_now_msun", "log_l_lsun", "log_teff_k", "log_r_rsun", "phase", "rgb"] as const;
+export type TrackArray = (typeof TRACK_ARRAYS)[number];
+
 export interface Track {
+  mass_msun: number;
+  feh: number;
+  method: string;
   provenance: Provenance;
+  ending: string;
   flags: string[];
+  /** MIST phase number (as a string key) -> name for this track */
+  phase_names: Record<string, string>;
+  field_provenance: Record<TrackArray, Provenance>;
   age_yr: number[];
+  mass_now_msun: number[];
   log_l_lsun: number[];
   log_teff_k: number[];
   log_r_rsun: number[];
+  phase: number[];
   rgb: Rgb[];
+}
+
+/** One [Fe/H] slice of the Star Builder grid; sliders snap to feh_values and mass_values_msun. */
+export interface Grid {
+  feh: number;
+  feh_values: number[];
+  mass_values_msun: number[];
+  files: string[];
+  tracks: Track[];
 }
 
 export interface StellarDocument {
   meta: Meta;
-  track: Track;
+  grid: Grid;
 }

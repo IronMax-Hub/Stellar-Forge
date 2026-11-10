@@ -10,14 +10,13 @@ body {
 }
 
 main {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3rem;
+  max-width: 60rem;
+  margin: 0 auto;
   padding: 1rem;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
 }
 
 h1 {
@@ -26,24 +25,146 @@ h1 {
   margin: 0;
 }
 
+.source,
+.note {
+  color: #9a9cab;
+  font-size: 0.85rem;
+  margin: 0.25rem 0 0;
+}
+
+.controls {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.controls label {
+  display: grid;
+  grid-template-columns: 8rem 1fr;
+  align-items: center;
+  gap: 0 1rem;
+}
+
+.controls output {
+  grid-column: 1;
+  grid-row: 2;
+  font-variant-numeric: tabular-nums;
+}
+
+.controls input {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  width: 100%;
+}
+
+.views {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 1rem;
+}
+
+@media (max-width: 640px) {
+  .views {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hr {
+  width: 100%;
+  height: auto;
+}
+
+.hr text {
+  fill: #9a9cab;
+  font-size: 11px;
+}
+
+.hr .frame {
+  fill: none;
+  stroke: #33364a;
+}
+
+.hr .track {
+  fill: none;
+  stroke: #8fa8ff;
+  stroke-width: 1.2;
+}
+
+.disc-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+}
+
 .star {
-  width: 140px;
-  height: 140px;
   border-radius: 50%;
 }
 
-dl {
+.timeline .bar {
+  position: relative;
+  display: flex;
+  height: 2rem;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.timeline button {
+  border: 0;
+  color: #fff;
+  font-size: 0.75rem;
+  min-width: 2px;
+  padding: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.timeline .cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #fff;
+  pointer-events: none;
+}
+
+.numbers dl {
   display: grid;
-  grid-template-columns: auto auto;
-  gap: 0.4rem 1.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: 0.5rem 1.5rem;
   margin: 0;
-  max-width: 40rem;
 }
 
 dt {
   color: #9a9cab;
+  font-size: 0.8rem;
 }
 
 dd {
   margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.prov {
+  font-size: 0.7rem;
+  padding: 0 0.35rem;
+  border-radius: 3px;
+  margin-left: 0.3rem;
+  background: #2a2d3d;
+  color: #c9cbe0;
+}
+
+.prov-interpolated {
+  background: #3d3420;
+  color: #f0d58a;
+}
+
+.prov-derived {
+  background: #20363d;
+  color: #8ad8f0;
+}
+
+.flags {
+  color: #f0b08a;
 }

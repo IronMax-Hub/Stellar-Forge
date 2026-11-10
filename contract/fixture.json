@@ -1,10 +1,19 @@
 {
  "meta": {
-  "schema_version": 1,
-  "generator": {"name": "stellarforge", "version": "0.1.0", "git_commit": "0000000"},
-  "dataset": "none: hand-written test star for the Phase 0 contract, not MIST",
-  "models": {"colour": "hand-written"},
-  "inputs": {"mass_msun": 1.0, "feh": 0.0},
+  "schema_version": 2,
+  "generator": {
+   "name": "stellarforge",
+   "version": "0.1.0",
+   "git_commit": "0000000"
+  },
+  "dataset": "none: hand-written test grid for the contract, not MIST",
+  "models": {
+   "colour": "hand-written"
+  },
+  "inputs": {
+   "mass_msun": 1.0,
+   "feh": 0.0
+  },
   "seed": null,
   "created": "2026-11-11T00:00:00Z",
   "references": [
@@ -15,13 +24,90 @@
    }
   ]
  },
- "track": {
-  "provenance": "derived",
-  "flags": ["hand_written_test_data"],
-  "age_yr": [5.0e7, 4.57e9, 9.0e9],
-  "log_l_lsun": [-0.155, 0.0, 0.2],
-  "log_teff_k": [3.75, 3.7613, 3.76],
-  "log_r_rsun": [-0.055, 0.0, 0.1],
-  "rgb": [[1.0, 0.92, 0.84], [1.0, 0.94, 0.88], [1.0, 0.93, 0.87]]
+ "grid": {
+  "feh": 0.0,
+  "feh_values": [
+   -0.1,
+   0.0
+  ],
+  "mass_values_msun": [
+   1.0
+  ],
+  "files": [
+   "tracks_feh_-0.1.json",
+   "tracks_feh_+0.0.json"
+  ],
+  "tracks": [
+   {
+    "mass_msun": 1.0,
+    "feh": 0.0,
+    "method": "hand-written",
+    "provenance": "derived",
+    "ending": "white-dwarf cooling sequence",
+    "flags": [
+     "hand_written_test_data"
+    ],
+    "phase_names": {
+     "-1": "pre-main sequence",
+     "0": "main sequence"
+    },
+    "field_provenance": {
+     "age_yr": "derived",
+     "mass_now_msun": "derived",
+     "log_l_lsun": "derived",
+     "log_teff_k": "derived",
+     "log_r_rsun": "derived",
+     "phase": "derived",
+     "rgb": "derived"
+    },
+    "age_yr": [
+     50000000.0,
+     4570000000.0,
+     9000000000.0
+    ],
+    "mass_now_msun": [
+     1.0,
+     0.9999,
+     0.9998
+    ],
+    "log_l_lsun": [
+     -0.155,
+     0.0,
+     0.2
+    ],
+    "log_teff_k": [
+     3.75,
+     3.7613,
+     3.76
+    ],
+    "log_r_rsun": [
+     -0.055,
+     0.0,
+     0.1
+    ],
+    "phase": [
+     -1,
+     0,
+     0
+    ],
+    "rgb": [
+     [
+      1.0,
+      0.92,
+      0.84
+     ],
+     [
+      1.0,
+      0.94,
+      0.88
+     ],
+     [
+      1.0,
+      0.93,
+      0.87
+     ]
+    ]
+   }
+  ]
  }
 }

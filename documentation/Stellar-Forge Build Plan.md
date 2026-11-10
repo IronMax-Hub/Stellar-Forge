@@ -1,10 +1,16 @@
 # Stellar-Forge Build Plan
 
-Nov 6, 2026 · @Mayukh · revision 3: consistency fixes before implementation
+Nov 11, 2026 · @Mayukh · revision 4: MIST coverage from the downloaded archives
 
 Stellar-Forge is built in nine phases (0–8), entirely on this machine: Python computes every result from published physics, a TypeScript observatory only displays it, and one shared JSON fixture keeps the two in step. The first visible milestone is the Sun's track on an HR diagram in the browser at the end of Phase 1; your questions on lifetimes, remnants and planets are answered by Phases 3, 5 and 6. Every reference and 57 specific claims were checked against their sources on 6 November 2026 — see [Source checks](Source%20checks.md).
 
 ## Revision history
+
+**Revision 4 — MIST coverage from the downloaded archives (11 November 2026)**
+
+- **Dataset:** MIST v1.2 is chosen over v2.5 (rotating, [α/Fe] = 0, 15 metallicities); see `documentation/data/MIST version comparison.md`.
+- **Coverage:** the released v1.2 archives go further than Choi et al. 2016 describes. At [Fe/H] −3.0 many tracks reach the white dwarf or carbon burning, and at [Fe/H] 0 stars of 0.65–0.7 M☉ evolve past the main sequence. Endings vary track by track at every metallicity, so the plan now reads each track's ending from the inventory instead of assuming it from mass and metallicity.
+- **EEP 808:** marks the start of the thermally pulsing AGB on `low-mass` tracks and the end of carbon burning on `high-mass` ones; the safeguards now say so.
 
 **Revision 3 — consistency fixes before implementation (6 November 2026)**
 
@@ -111,9 +117,9 @@ Every phase fits this machine if raw data is streamed instead of unpacked, jobs 
 | Job | Size | Estimated time on this CPU |
 | --- | --- | --- |
 | Download MIST | 15 archives, about 1.5 GB | depends on your connection; resumable |
-| Convert MIST to compact grids | 15 metallicities | 15–40 min, once; Phase 1 times one archive first |
+| Convert MIST to compact grids | 15 metallicities | measured: 9.5 s per archive, about 2 min for all 15 on one process; 143 MB of grids |
 | Build one star's track | 1 mass and metallicity | under 50 ms |
-| Export the web track grid | 200 masses × 46 metallicities | a few minutes |
+| Export the web track grid | 201 masses × 46 metallicities | measured: 8 s on 4 workers; 2.8 MB per metallicity, 129 MB in all (ages unrounded) |
 | Lifetime and remnant sweep | 200 masses × 46 metallicities (main sequence) or × 26 (full life) | under 2 min |
 | Solve one zero-age main-sequence model | 1 star | 1–10 s |
 | Planet population grid | 5,000 systems in each of 120 cells | 10–40 min on 4 workers |
@@ -279,18 +285,22 @@ Every export carries a `meta` block, so any result can be reproduced and read co
 
 ## Phase 1 — Star evolution from MIST tracks
 
-**Goal:** the full life of any star from 0.1 to 300 M☉ for [Fe/H] −2.0 to +0.5, and its main sequence and helium burning down to [Fe/H] −4.0, shown on an HR diagram in the browser.
+**Goal:** the life of any star from 0.1 to 300 M☉ and [Fe/H] −4.0 to +0.5, as far as its MIST track goes, shown on an HR diagram in the browser.
 
-**Published basis:** the MIST v1.2 evolutionary tracks (Choi et al. 2016; Dotter 2016), computed with the MESA code. A MIST track is a result of that published model, which Stellar-Forge processes and presents; it is not a new first-principles calculation. Coverage, as checked against Choi et al. 2016 and the MIST website:
+**Published basis:** the MIST v1.2 evolutionary tracks (Choi et al. 2016; Dotter 2016), computed with the MESA code. A MIST track is a result of that published model, which Stellar-Forge processes and presents; it is not a new first-principles calculation. Coverage, as described by Choi et al. 2016 and as found in the released archives (`documentation/data/MIST coverage.md`):
 
-| Part of the grid | How far MIST follows the star |
-| --- | --- |
-| [Fe/H] −2.0 to +0.5 (11 metallicities) | to the white-dwarf cooling sequence or the end of carbon burning |
-| [Fe/H] −4.0 to −2.5 (4 metallicities) | only to the end of core helium burning |
-| Stars of 0.7 M☉ and below | to the end of the main sequence, which takes over 35 Gyr at 0.7 M☉ |
-| Rotation | v/vcrit = 0.4 by default; a non-rotating set is also released |
+| Part of the grid | Choi et al. 2016 | The released v1.2 archives |
+| --- | --- | --- |
+| [Fe/H] −2.0 to +0.5 (11 metallicities) | to the end of the main sequence, the white-dwarf cooling sequence or the end of carbon burning, by mass | mostly so: of 196 tracks, 137–168 reach the white dwarf or the end of carbon burning and 18 stop at the end of the main sequence; 10–41 stop early elsewhere (10–14 from −1.75 to 0, 29 at −2.0, 23 at +0.25, 41 at +0.5) |
+| [Fe/H] −4.0 to −2.5 (4 metallicities) | to the end of core helium burning | further: 74–92 of 196 tracks reach the white dwarf or the end of carbon burning, 18 stop at the end of the main sequence and 86–104 stop early elsewhere; endings are irregular from one mass to the next |
+| Stars of 0.7 M☉ and below | stopped at the end of the main sequence, which takes over 35 Gyr at 0.7 M☉ | at [Fe/H] 0, only stars up to 0.55 M☉ stop there; 0.6–0.7 M☉ evolve further |
+| Rotation | v/vcrit = 0.4 by default; a non-rotating set is also released | as described |
+
+Because endings vary track by track, every rule below reads a track's ending from the inventory; none assumes it from mass or metallicity.
 
 **Dataset decision.** v1.2 is the initial implementation candidate, but the dataset format (processed-grid layout, grid axes and contract fields) is fixed only after Phase 1 compares it with MIST v2.5. v2.5 was released on 24 February 2026 (Dotter et al. 2026, in press); the MIST site says it adopts the GS98 abundance pattern, covers the full [Fe/H] range and adds a range of [α/Fe] values.
+
+**Decided 11 November 2026: v1.2** (rotating, [α/Fe] = 0, 15 metallicities). The reasons are in `documentation/data/MIST version comparison.md`.
 
 **Steps**
 
@@ -307,7 +317,7 @@ Every export carries a `meta` block, so any result can be reproduced and read co
 4. Convert the first v1.2 archive and time it, then fetch and convert the rest of the chosen version. Each archive is read in place with Python's `tarfile` module, never unpacked. About 20 columns are kept as float32 — age, current mass, log L, log Teff, log R, log g, helium and carbon–oxygen core masses, central hydrogen and helium, central temperature and density, and MIST's `phase` label — in one `.npz` file per metallicity.
 5. `stellarforge/evolution.py` builds a track for any mass and metallicity by interpolating at the same equivalent evolutionary phase (EEP), in log mass and [Fe/H]. Safeguards:
     - interpolate only inside a documented valid grid cell, where all four corner tracks exist and share the EEPs needed;
-    - never blend tracks that end differently: white-dwarf cooling, carbon burning, stopped after core helium burning, stopped at the end of the main sequence;
+    - never blend tracks that end differently: white-dwarf cooling, carbon burning, or stopped early at any primary EEP. A track's ending is its last primary EEP, read from its header; EEP 808 is the end of carbon burning on `high-mass` tracks but only the start of the thermally pulsing AGB on `low-mass` ones;
     - treat missing grid points explicitly and refuse to extrapolate;
     - near a boundary, use the nearest valid track with a flag rather than an invalid blend;
     - record the method (grid track, EEP interpolation or nearest track) and its validity flags on every exported track.
@@ -321,7 +331,7 @@ Every export carries a `meta` block, so any result can be reproduced and read co
 
 **Checks** (numbers in Validation): the Sun at 4.57 Gyr; leave-one-out interpolation accuracy; the coverage report agreeing with Choi et al. 2016; metallicity trends at fixed mass.
 
-**Known limits:** with v1.2, stars below [Fe/H] −2.0 stop after core helium burning, so their remnants and late phases are not shown. Stars of 0.7 M☉ and below stop at the end of the main sequence, which they have not reached in the universe's 13.8 Gyr.
+**Known limits:** some v1.2 tracks stop before a final phase (white dwarf or end of carbon burning) — most often below [Fe/H] −2.0, but at every metallicity. Their remnants and later phases are not shown, and each is labelled with where its track stops. The lowest-mass stars stop at the end of the main sequence, which they have not reached in the universe's 13.8 Gyr.
 
 **Machine cost:** a 1.5 GB download, plus two v2.5 test archives if their sizes fit; 15–40 minutes of one-time conversion; under 1 GB of RAM at a time; about 150 MB of web data.
 
@@ -341,8 +351,8 @@ Every export carries a `meta` block, so any result can be reproduced and read co
 | Helium core of about 40–65 M☉ (thresholds differ between papers) | Black hole capped near 45 M☉ (40.5 M☉ in Belczynski et al.; 40–56 M☉ across Farmer et al.'s uncertainties) | Pulsations shed the excess mass | Heger & Woosley 2002; Woosley 2017; Belczynski et al. 2016; Farmer et al. 2019 |
 | Helium core of 64–133 M☉ | None: the star is destroyed | Pair-instability supernova | Heger & Woosley 2002 |
 | Helium core above 133 M☉ | Black hole by direct collapse | The whole star collapses | Heger & Woosley 2002 |
-| Track stops at the end of the main sequence (0.7 M☉ and below) | None yet | Labelled "still on the main sequence" | Choi et al. 2016 |
-| Track stops after core helium burning ([Fe/H] below −2.0 in v1.2) | Not predicted | Labelled "track incomplete"; no remnant shown | Choi et al. 2016 |
+| Track stops at the end of the main sequence (the lowest masses) | None yet | Labelled "still on the main sequence" | Choi et al. 2016 |
+| Track stops early at any other point (any metallicity in v1.2) | Not predicted | Labelled "track incomplete" with where it stops; no remnant shown | `MIST coverage.md` |
 
 Every threshold is a named constant in `remnants.py`, with its citation in a comment.
 
@@ -381,7 +391,7 @@ The record also says it assumes a single star. Most massive stars interact with 
 | Experiment | Grid | Output |
 | --- | --- | --- |
 | Main-sequence lifetime map | 200 masses (0.1–300 M☉, log-spaced) × 46 metallicities ([Fe/H] −4.0 to +0.5, step 0.1) | heatmap of main-sequence lifetime |
-| Full-life map | 200 masses × 26 metallicities ([Fe/H] −2.0 to +0.5) with v1.2 | heatmap of total lifetime |
+| Full-life map | 200 masses × 46 metallicities with v1.2; cells without a complete track are shown as "track incomplete" | heatmap of total lifetime |
 | Remnant map | the full-life grid, both Fryer variants | a type map: white dwarf, neutron star, black hole, no remnant, still on the main sequence |
 | Remnant mass curves | 200 masses × 5 metallicities | final mass against initial mass, both prescriptions |
 | Population outcome | Kroupa initial mass function, 10⁶ stars per metallicity | share of stars ending as each remnant; core-collapse events per 1,000 M☉ of stars formed |
@@ -565,7 +575,7 @@ The rules run in order and the first match wins, so every planet gets exactly on
 
 For each planet the model reports its closest approach in stellar radii and the phase that decided its fate. MIST's winds (Reimers η = 0.1 on the red-giant branch, Blöcker η = 0.2 on the AGB; Choi et al. 2016) differ from Schröder & Connon Smith's, so the report puts MIST's tip-RGB radius and mass beside their 256 R☉ and 0.668 M☉.
 
-The plan models single stars. The binary stability limits ported from Aion Forge (Holman & Wiegert 1999) apply only if companion stars are added later. Planet fates need complete tracks, so with MIST v1.2 they run for [Fe/H] −2.0 to +0.5.
+The plan models single stars. The binary stability limits ported from Aion Forge (Holman & Wiegert 1999) apply only if companion stars are added later. Planet fates need complete tracks, so with MIST v1.2 they run only for stars whose track reaches a final phase; most of these are at [Fe/H] −2.0 to +0.5.
 
 **Steps**
 
@@ -696,10 +706,10 @@ Passing tests does not by itself make the project scientifically validated. Whet
 | All | Contract | Data contract | pytest and Vitest both pass on `contract/fixture.json` at every commit | Ground rule 3 | Not run |
 | All | Contract | Aion Forge untouched | checksum manifests before and after each copy are identical | Ground rule 4 | Not run |
 | 0 | Numerical | Python ports of Aion Forge models | match the expected values in Aion Forge's tests | Aion Forge tests, read as text | Not run |
-| 1 | Scientific | The Sun at 4.57 Gyr | L = 1.00 ± 0.05 L☉, R = 1.00 ± 0.05 R☉, Teff = 5772 ± 60 K | Choi et al. 2016; Prša et al. 2016 | Not run |
-| 1 | Numerical | Leave-one-out interpolation | main-sequence errors under 0.02 dex in log L and log Teff | the MIST grid itself | Not run |
-| 1 | Scientific | Grid coverage | tracks end where Choi et al. 2016 says: full evolution for [Fe/H] ≥ −2.0, core helium burning below, main-sequence end at 0.7 M☉ and below | Choi et al. 2016 | Not run |
-| 1 | Scientific | Metallicity trend | at 1 M☉, lower [Fe/H] gives a hotter, brighter star with a shorter main sequence | MIST | Not run |
+| 1 | Scientific | The Sun at 4.57 Gyr, from the released [Fe/H] 0 grid track | L = 0.95–1.12 L☉, R = 1.00 ± 0.05 R☉, Teff = 5712–5872 K. Re-aimed 11 Nov 2026 from L = 1.00 ± 0.05 L☉ and Teff = 5772 ± 60 K: MIST's released [Fe/H] 0 tracks are not its calibrated solar model (Choi et al. 2016 table 2 calibrates with Y_init 0.2612, Z_init 0.0150; the grid uses 0.2703 and 0.0143), so the upper limits allow that known offset and nothing below the Sun | Choi et al. 2016; Prša et al. 2016 | **Passed (11 Nov 2026):** L = 1.106 L☉, R = 1.025 R☉, Teff = 5848 K (`tests/test_evolution.py`) |
+| 1 | Numerical | Leave-one-out interpolation | main-sequence errors under 0.02 dex in log L and log Teff | the MIST grid itself | **Reported, target not met everywhere (11 Nov 2026):** median errors 0.004 dex (log L) along mass and 0.012 dex along [Fe/H]; up to 13.8 Gyr, 308 of 2,259 tracks (mass) and 682 of 1,914 ([Fe/H]) exceed 0.02 dex, mostly above 30 M☉ and across the 0.5 dex steps below [Fe/H] −2.0. See `documentation/data/MIST interpolation check.md` |
+| 1 | Scientific | Grid coverage | the inventory lists every track's ending, and every difference from Choi et al. 2016 is reported (known: low-metallicity tracks and 0.6–0.7 M☉ stars go further than the paper says) | Choi et al. 2016; MIST archives | **Passed (11 Nov 2026):** `documentation/data/MIST coverage.md`; differences are listed in Phase 1 |
+| 1 | Scientific | Metallicity trend | at 1 M☉, lower [Fe/H] gives a hotter, brighter star with a shorter main sequence | MIST | **Passed (11 Nov 2026):** `tests/test_evolution.py` |
 | 2 | Scientific | Initial–final mass, solar metallicity | within the 0.06 M☉ scatter of the MIST-based relation | Cummings et al. 2018 | Not run |
 | 2 | Scientific | Neutron-star masses | predicted masses fall within the measured range, up to about 2.0 M☉ | Özel & Freire 2016 | Not run |
 | 2 | Scientific | Lower edge of the pair-instability gap | at every metallicity where stars reach the gap, the heaviest black hole below it is near 45 M☉ (40–56 M☉ allowed) | Farmer et al. 2019 | Not run |
@@ -729,7 +739,7 @@ The biggest risks are machine limits (disk, GPU), gaps in the published data, an
 | Risk | What goes wrong | Fallback |
 | --- | --- | --- |
 | SSD fills up (44 GB free, 81% used) | downloads or exports fail | stream archives instead of unpacking; cap working data at 5 GB; a `make clean-data` target; move archives to the 2 TB disk if it is made readable |
-| MIST v1.2 stops low-metallicity tracks after core helium burning | no remnants or planet fates below [Fe/H] −2.0 | label those stars "track incomplete"; Phase 1 compares v1.2 with v2.5 before the dataset format is fixed |
+| Some MIST v1.2 tracks stop early, most often below [Fe/H] −2.0 | no remnants or planet fates for those stars | label them "track incomplete" with where they stop; never blend them with complete tracks |
 | Weak GPU (G210, nouveau driver) | 3D views stutter | 2D-first views, lowest shader quality, redraw only on change |
 | Memory contention with other open apps | swapping slows every job | at most 4 GiB per job; MIST processed one metallicity at a time |
 | Interpolating across tracks that end differently, or across the helium flash | unphysical tracks shown as real | interpolate only inside valid cells at the same EEP; flag and use the nearest valid track near boundaries; leave-one-out tests |
@@ -747,7 +757,7 @@ The biggest risks are machine limits (disk, GPU), gaps in the published data, an
 
 These choices change what gets downloaded or built. Until you decide, the plan uses the suggested default, which is also the first option listed.
 
-- [ ] **MIST version:** keep v1.2 as the starting dataset and decide on v2.5 after Phase 1's comparison? v1.2 is fully published and about 1.5 GB, but follows stars to the end only for [Fe/H] ≥ −2.0. v2.5 was released in February 2026 with its paper in press; it uses GS98 abundances and has α-enhanced grids, and its size and low-metallicity coverage are unchecked. Suggested: yes; the comparison report (Phase 1, step 3) decides before the dataset format is fixed.
+- [x] **MIST version:** v1.2, decided 11 November 2026 after the comparison (Phase 1, step 3). v2.5 needs 2.9 GB for the same set, its paper is in press, and at [Fe/H] −3.0 it has no evolved tracks from 6.5 to 40 M☉.
 - [ ] **Rotation:** use MIST's rotating tracks (v/vcrit = 0.4, the default), the non-rotating set, or both? Both doubles the download to about 2.8 GB. Suggested: rotating only, with its coverage verified before downloading more.
 - [x] **Python:** uv is installed in your home folder (`~/.local/bin/uv`, from PyPI) and provides Python 3.12 in `.venv`; system Python 3.10 is untouched (decided 11 November 2026).
 - [ ] **External disk:** the 2 TB drive is mounted under the lawsikho account and this account cannot read it. Do you want it made readable as cold storage for raw archives? Suggested: no; the build does not depend on it.

@@ -72,3 +72,9 @@ These copies compile but nothing draws with them yet. Before a view uses one:
   with all text written new. They wait for Phase 7, when there is text to write.
 - `life.ts`, the city-light and orbital-shell shaders: left out for good; they belong to Aion
   Forge's life simulation.
+
+## Ported to Python (read in place, not copied)
+
+| Source | Python | Source SHA-256 | Notes |
+| --- | --- | --- | --- |
+| `src/simulation/star.ts`: `temperatureToColor` | `stellarforge/colour.py`: `temperature_to_rgb` | `be90050abefbae03` | Same coefficients and clamps, vectorised with NumPy. Checked against the expectations in `src/__tests__/starColour.test.ts`, read as text. Read on 11 November 2026 at commit `12b5749`. |
