@@ -13,9 +13,13 @@ FIXTURE = json.loads((Path(__file__).parent.parent / "contract" / "fixture.json"
 # Objects whose keys vary between documents (contract/README.md: "object of ..."); every value must
 # match the fixture's value kind.
 MAPS = {"inputs", "models", "phase_names"}
-# Remnant fields that are null when there is no remnant or MIST gives no value.
+# Fields that may be null: remnant values with no remnant or no MIST value, a row without y, no seed.
 NULLABLE = {"mass_msun", "radius_km", "cooling", "final_mass_msun", "he_core_mass_msun",
-            "co_core_mass_msun"}
+            "co_core_mass_msun", "y", "seed"}
+# Lists whose items may be null: experiment cells without a number, word or provenance.
+NULLABLE_ITEMS = {"values", "labels", "provenance"}
+# Blocks a document may carry beside `meta`; the fixture holds them all.
+BLOCKS = {"grid", "experiment"}
 
 
 def kind(value):
@@ -28,6 +32,12 @@ def assert_shape(actual, expected, path="document", key=None):
     the fixture's first item."""
     if key in NULLABLE and (actual is None or expected is None):
         return
+    if path == "document":
+        assert "meta" in actual and set(actual) - {"meta"} and set(actual) <= set(expected), \
+            f"document blocks {sorted(actual)}, expected meta and some of {sorted(BLOCKS)}"
+        for k in actual:
+            assert_shape(actual[k], expected[k], f"document.{k}", k)
+        return
     if isinstance(expected, dict) and key in MAPS:
         assert isinstance(actual, dict), path
         kinds = {kind(v) for v in expected.values()}
@@ -39,8 +49,10 @@ def assert_shape(actual, expected, path="document", key=None):
             assert_shape(actual[k], expected[k], f"{path}.{k}", k)
     elif isinstance(expected, list):
         assert isinstance(actual, list), f"{path}: {kind(actual)}, expected a list"
-        for i, item in enumerate(actual if expected else []):
-            assert_shape(item, expected[0], f"{path}[{i}]")
+        sample = next((e for e in expected if e is not None), None)
+        for i, item in enumerate(actual if sample is not None else []):
+            if not (key in NULLABLE_ITEMS and item is None):
+                assert_shape(item, sample, f"{path}[{i}]")
     else:
         assert kind(actual) == kind(expected), f"{path}: {kind(actual)}, expected {kind(expected)}"
 
@@ -85,6 +97,34 @@ def test_real_web_export_matches_fixture_shape():
         source = set(evolution.build_track(track["mass_msun"], 0.0).values["age_yr"])
         assert set(track["age_yr"]) <= source, track["mass_msun"]
         assert all(b >= a for a, b in zip(track["age_yr"], track["age_yr"][1:])), track["mass_msun"]
+
+
+def test_experiment_document_matches_fixture_shape():
+    meta = export.build_meta(dataset="test", models={"colour": "test"}, inputs={"feh": 0.0},
+                             reference_keys=["Choi2016"])
+    heat = export.build_panel(
+        title="t", kind="heatmap", x_values=[1, 2], log_x=True,
+        rows=[export.build_row(label="0", y=0, values=[1e9, float("nan")],
+                               labels=[None, "track incomplete"], provenance=["published", None])])
+    table = export.build_panel(title="t", kind="table", columns=["a"],
+                               rows=[export.build_row(label="r", values=[1.0])])
+    document = export.build_document(meta, experiment=export.build_experiment(
+        name="n", title="t", summary="s", panels=[heat, table]))
+    assert_shape(document, FIXTURE)
+    with pytest.raises(ValueError):
+        export.build_panel(title="t", kind="pie", rows=[])
+    with pytest.raises(ValueError):
+        export.build_panel(title="t", kind="curves", x_values=[1, 2],
+                           rows=[export.build_row(label="r", values=[1.0])])
+
+
+@pytest.mark.skipif(not list(evolution.GRIDS.glob("*.npz")),
+                    reason="MIST grid not converted; run `make data`")
+def test_real_experiments_match_fixture_shape():
+    from stellarforge import experiments
+    params = {**experiments.DEFAULTS, "feh": "-1:0:0.5", "masses": 12, "stars": 1000}
+    for name in experiments.EXPERIMENTS:
+        assert_shape(experiments.result_document(name, params), FIXTURE)
 
 
 def test_schema_version_matches():

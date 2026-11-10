@@ -30,9 +30,21 @@ def _git_commit() -> str:
         return "unknown"
 
 
+def git_commit_time() -> str:
+    """The HEAD commit's time, UTC: a `created` that a rerun of the same code reproduces."""
+    try:
+        out = subprocess.run(["git", "-C", str(_HERE), "log", "-1", "--format=%ct"],
+                             capture_output=True, text=True, check=True).stdout.strip()
+        return datetime.fromtimestamp(int(out), UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    except (OSError, ValueError, subprocess.CalledProcessError):
+        return "unknown"
+
+
 def build_meta(*, dataset: str, models: dict[str, str], inputs: dict[str, float],
-               reference_keys: list[str], seed: int | None = None) -> dict:
-    """The provenance block every export carries. Unknown reference keys raise KeyError."""
+               reference_keys: list[str], seed: int | None = None,
+               created: str | None = None) -> dict:
+    """The provenance block every export carries. Unknown reference keys raise KeyError.
+    `created` defaults to now; reproducible runs pass git_commit_time() instead."""
     return {
         "schema_version": SCHEMA_VERSION,
         "generator": {"name": "stellarforge", "version": __version__, "git_commit": _git_commit()},
@@ -40,7 +52,7 @@ def build_meta(*, dataset: str, models: dict[str, str], inputs: dict[str, float]
         "models": dict(models),
         "inputs": dict(inputs),
         "seed": seed,
-        "created": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "created": created or datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "references": [_REFERENCES[k] for k in reference_keys],
     }
 
@@ -115,6 +127,44 @@ def build_remnant(*, type: str, mass_msun, radius_km, provenance: str, prescript
     }
 
 
+PANEL_KINDS = ("heatmap", "curves", "table")
+
+
+def build_row(*, label: str, values, labels=None, provenance=None, y: float | None = None) -> dict:
+    """One heatmap row, curve or table row. Each cell is a number (`values`), a word (`labels`,
+    used where not null) or empty; `provenance` says where each cell came from."""
+    n = len(values)
+    labels = [None] * n if labels is None else list(labels)
+    provenance = [None] * n if provenance is None else list(provenance)
+    if not len(labels) == len(provenance) == n:
+        raise ValueError(f"row {label!r}: values, labels and provenance differ in length")
+    if any(p is not None and p not in PROVENANCE for p in provenance):
+        raise ValueError(f"row {label!r}: provenance must be one of {PROVENANCE}")
+    return {"label": label, "y": None if y is None else float(y),
+            "values": [None if v is None or np.isnan(v) else float(f"{v:.5g}") for v in values],
+            "labels": labels, "provenance": provenance}
+
+
+def build_panel(*, title: str, kind: str, rows: list[dict], x_label: str = "", y_label: str = "",
+                value_label: str = "", log_x: bool = False, log_values: bool = False,
+                x_values=(), columns=()) -> dict:
+    """A heatmap (rows of cells over x_values), curves (one row per curve over x_values) or a
+    table (rows of cells under columns)."""
+    if kind not in PANEL_KINDS:
+        raise ValueError(f"panel kind must be one of {PANEL_KINDS}")
+    width = len(columns) if kind == "table" else len(x_values)
+    if any(len(r["values"]) != width for r in rows):
+        raise ValueError(f"panel {title!r}: every row needs {width} cells")
+    return {"title": title, "kind": kind, "x_label": x_label, "y_label": y_label,
+            "value_label": value_label, "log_x": log_x, "log_values": log_values,
+            "x_values": [float(f"{x:.5g}") for x in x_values], "columns": list(columns),
+            "rows": rows}
+
+
+def build_experiment(*, name: str, title: str, summary: str, panels: list[dict]) -> dict:
+    return {"name": name, "title": title, "summary": summary, "panels": panels}
+
+
 def build_grid(*, feh: float, feh_values, mass_values_msun, files: list[str],
                tracks: list[dict]) -> dict:
     """One [Fe/H] slice of the web grid; the sliders snap to feh_values and mass_values_msun."""
@@ -129,8 +179,10 @@ def build_grid(*, feh: float, feh_values, mass_values_msun, files: list[str],
     }
 
 
-def build_document(meta: dict, grid: dict) -> dict:
-    return {"meta": meta, "grid": grid}
+def build_document(meta: dict, grid: dict | None = None, experiment: dict | None = None) -> dict:
+    """meta plus the blocks this document carries (a grid, an experiment or both)."""
+    blocks = {"grid": grid, "experiment": experiment}
+    return {"meta": meta, **{k: v for k, v in blocks.items() if v is not None}}
 
 
 def write_document(document: dict, path: Path) -> None:

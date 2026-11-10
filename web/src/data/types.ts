@@ -2,7 +2,7 @@
 // Python writes these values; nothing here computes one.
 
 /** Must equal SCHEMA_VERSION in stellarforge/__init__.py and the fixture's meta.schema_version. */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export type Provenance = "published" | "interpolated" | "derived" | "predicted";
 export const PROVENANCES: readonly Provenance[] = ["published", "interpolated", "derived", "predicted"];
@@ -85,7 +85,41 @@ export interface Grid {
   tracks: Track[];
 }
 
+export const PANEL_KINDS = ["heatmap", "curves", "table"] as const;
+export type PanelKind = (typeof PANEL_KINDS)[number];
+
+/** A heatmap row, one curve or a table row: each cell is a number, a word (shown instead) or empty. */
+export interface PanelRow {
+  label: string;
+  y: number | null;
+  values: (number | null)[];
+  labels: (string | null)[];
+  provenance: (Provenance | null)[];
+}
+
+export interface Panel {
+  title: string;
+  kind: PanelKind;
+  x_label: string;
+  y_label: string;
+  value_label: string;
+  log_x: boolean;
+  log_values: boolean;
+  x_values: number[];
+  columns: string[];
+  rows: PanelRow[];
+}
+
+export interface Experiment {
+  name: string;
+  title: string;
+  summary: string;
+  panels: Panel[];
+}
+
+/** meta plus the blocks a file carries: Star Builder files a grid, experiment results an experiment. */
 export interface StellarDocument {
   meta: Meta;
-  grid: Grid;
+  grid?: Grid;
+  experiment?: Experiment;
 }

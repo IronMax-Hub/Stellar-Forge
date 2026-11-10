@@ -3,8 +3,8 @@
 // change on the Python side fails loudly here instead of drawing nonsense.
 
 import { PROVENANCES, SCHEMA_VERSION, TRACK_ARRAYS } from "./types";
-import { REMNANT_TYPES } from "./types";
-import type { Cooling, Grid, Meta, Provenance, Reference, Remnant, RemnantType, Rgb, StellarDocument, Track, TrackArray } from "./types";
+import { PANEL_KINDS, REMNANT_TYPES } from "./types";
+import type { Cooling, Experiment, Grid, Meta, Panel, PanelKind, PanelRow, Provenance, Reference, Remnant, RemnantType, Rgb, StellarDocument, Track, TrackArray } from "./types";
 
 type Json = Record<string, unknown>;
 
@@ -161,8 +161,63 @@ function parseGrid(value: unknown): Grid {
   return grid;
 }
 
+function boolean(value: unknown, path: string): boolean {
+  return typeof value === "boolean" ? value : fail(path, "true or false");
+}
+
+function parseRow(value: unknown, path: string, width: number): PanelRow {
+  const r = object(value, path);
+  const row: PanelRow = {
+    label: string(r.label, `${path}.label`),
+    y: nullable(r.y, `${path}.y`, number),
+    values: list(r.values, `${path}.values`, (v, p) => nullable(v, p, number)),
+    labels: list(r.labels, `${path}.labels`, (v, p) => nullable(v, p, string)),
+    provenance: list(r.provenance, `${path}.provenance`, (v, p) => nullable(v, p, provenance)),
+  };
+  for (const name of ["values", "labels", "provenance"] as const) {
+    if (row[name].length !== width) fail(`${path}.${name}`, `${width} cells long`);
+  }
+  return row;
+}
+
+function parsePanel(value: unknown, path: string): Panel {
+  const p = object(value, path);
+  const kind = string(p.kind, `${path}.kind`) as PanelKind;
+  if (!PANEL_KINDS.includes(kind)) fail(`${path}.kind`, `one of ${PANEL_KINDS.join(", ")}`);
+  const xValues = list(p.x_values, `${path}.x_values`, number);
+  const columns = list(p.columns, `${path}.columns`, string);
+  const width = kind === "table" ? columns.length : xValues.length;
+  return {
+    title: string(p.title, `${path}.title`),
+    kind,
+    x_label: string(p.x_label, `${path}.x_label`),
+    y_label: string(p.y_label, `${path}.y_label`),
+    value_label: string(p.value_label, `${path}.value_label`),
+    log_x: boolean(p.log_x, `${path}.log_x`),
+    log_values: boolean(p.log_values, `${path}.log_values`),
+    x_values: xValues,
+    columns,
+    rows: list(p.rows, `${path}.rows`, (v, q) => parseRow(v, q, width)),
+  };
+}
+
+function parseExperiment(value: unknown): Experiment {
+  const e = object(value, "experiment");
+  return {
+    name: string(e.name, "experiment.name"),
+    title: string(e.title, "experiment.title"),
+    summary: string(e.summary, "experiment.summary"),
+    panels: list(e.panels, "experiment.panels", parsePanel),
+  };
+}
+
 /** A typed document from parsed JSON; throws if any field is missing or of the wrong type. */
 export function parseDocument(raw: unknown): StellarDocument {
   const doc = object(raw, "document");
-  return { meta: parseMeta(doc.meta), grid: parseGrid(doc.grid) };
+  if (doc.grid === undefined && doc.experiment === undefined) fail("document", "a grid or an experiment block");
+  return {
+    meta: parseMeta(doc.meta),
+    ...(doc.grid !== undefined && { grid: parseGrid(doc.grid) }),
+    ...(doc.experiment !== undefined && { experiment: parseExperiment(doc.experiment) }),
+  };
 }

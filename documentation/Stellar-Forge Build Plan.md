@@ -120,7 +120,7 @@ Every phase fits this machine if raw data is streamed instead of unpacked, jobs 
 | Convert MIST to compact grids | 15 metallicities | measured: 9.5 s per archive, about 2 min for all 15 on one process; 143 MB of grids |
 | Build one star's track | 1 mass and metallicity | under 50 ms |
 | Export the web track grid | 201 masses × 46 metallicities | measured: 8 s on 4 workers; 2.8 MB per metallicity, 129 MB in all (ages unrounded) |
-| Lifetime and remnant sweep | 200 masses × 46 metallicities (main sequence) or × 26 (full life) | under 2 min |
+| Lifetime and remnant sweep | 200 masses × 46 metallicities | measured: about 3 s on 4 workers; all six experiments about 10 s |
 | Solve one zero-age main-sequence model | 1 star | 1–10 s |
 | Planet population grid | 5,000 systems in each of 120 cells | 10–40 min on 4 workers |
 | Export everything for the web | all phases | under 5 min |
@@ -417,6 +417,13 @@ The record also says it assumes a single star. Most massive stars interact with 
 **Machine cost:** each sweep under 2 minutes; results of tens of MB.
 
 **Done when:** all six experiments run from the command line, produce figures and dashboard views, and rerun identically.
+
+**Built 11 November 2026:**
+
+- `make experiments` runs all six in about 10 s on 4 workers (one 200 × 46 sweep is shared); results take under 2 MB and the exported copies 1.3 MB.
+- `result.json` takes `meta.created` from the code's commit time so reruns are byte-identical; `run.json` holds the command, parameters, wall-clock time and machine.
+- The Experiments view is a second tab beside Star Builder.
+- Fixed on the way: a star with no alternative prescription (white dwarf outside Cummings et al.'s range, still on the main sequence, or not predicted) carried an alternative of type `none`, which the rapid remnant map drew as "destroyed"; the alternative now repeats the star's own outcome.
 
 **Effort:** 3–4 days.
 
@@ -719,9 +726,10 @@ Passing tests does not by itself make the project scientifically validated. Whet
 | 2 | Scientific | Initial–final mass, solar metallicity | below 2 M☉, within the 0.06 M☉ scatter of the MIST-based relation; from 2 M☉, from 0.16 M☉ below it (the ~0.1 M☉ offset Cummings et al. report between MIST's theoretical relation and observed white dwarfs, plus the scatter) to 0.06 M☉ above. Re-aimed 11 Nov 2026 from "within 0.06 M☉" everywhere, which 56 of 113 missed; rotation is not the cause (the non-rotating [Fe/H] 0 set misses alike) | Cummings et al. 2018 (eqs. 4–6, fig. 5, section 6) | **Passed (11 Nov 2026):** offsets −0.03 to −0.06 M☉ below 2 M☉, −0.06 to −0.14 M☉ above (`tests/test_remnants.py`) |
 | 2 | Scientific | Neutron-star masses | predicted masses 1.1–2.1 M☉. Re-aimed 11 Nov 2026 from "up to about 2.0 M☉": measured masses reach about 2.0 M☉, and Fryer's 2.5 M☉ baryonic limit is 2.12 M☉ gravitational (eq. 13), so the limit allows the prescription's own top end | Özel & Freire 2016; Fryer et al. 2012 | **Passed (11 Nov 2026):** 1.11–2.10 M☉ over both prescriptions and all 15 metallicities; 6 delayed-prescription stars reach 2.03–2.10 M☉; the heaviest, 2.1046 M☉, is compared at two decimals (`tests/test_remnants.py`) |
 | 2 | Scientific | Lower edge of the pair-instability gap | at every metallicity where stars reach the gap, the heaviest black hole below it is near 45 M☉ (40–56 M☉ allowed) | Farmer et al. 2019 | **Passed (11 Nov 2026), with one case reported:** no black hole from a helium core under 65 M☉ exceeds 56 M☉ at any metallicity; at the 11 metallicities where a grid star's helium core lands in the 45–65 M☉ pulsation range, the heaviest is 40.5–47.3 M☉. At [Fe/H] −2.5 the only star past 45 M☉ (150 M☉, helium core 112 M☉) explodes, so the heaviest is 33.9 M☉: the grid has no star in the pulsation range there |
-| 3 | Numerical | IMF share above 8 M☉ | 0.71% of stars by number (Kroupa IMF, 0.1–100 M☉); about 11 such stars per 1,000 M☉ formed | Kroupa 2001, recomputed | Not run |
-| 3 | Numerical | Reproducibility | the same command gives a byte-identical `result.json` | this plan | Not run |
-| 3 | Scientific | Remnants against metallicity | final helium-core masses, and black-hole masses below the gap, rise as metallicity falls; which initial masses reach the gap is reported as a result, with no target | Heger et al. 2003 | Not run |
+| 3 | Numerical | IMF share above 8 M☉ | 0.71% of stars by number (Kroupa IMF, 0.1–100 M☉); about 11 such stars per 1,000 M☉ formed | Kroupa 2001, recomputed | **Passed (11 Nov 2026):** the integrals give 0.710% and 11.1 per 1,000 M☉; 10⁶ seeded draws give 0.723%, within 4 standard deviations (`tests/test_experiments.py`) |
+| 3 | Numerical | Reproducibility | the same command gives a byte-identical `result.json` | this plan | **Passed (11 Nov 2026):** two runs of `population` and `remnant-map`, the second recomputing its sweep, give identical bytes; `meta.created` is the code's commit time and the wall-clock time goes in `run.json` (`tests/test_experiments.py`) |
+| 3 | Scientific | Main-sequence lifetime against metallicity | shorter main sequences at low metallicity | MIST; Choi et al. 2016 | **Passed below 8 M☉, reversed above (11 Nov 2026):** all 109 grid stars below 8 M☉ have a shorter main sequence at [Fe/H] −2 than at 0. Above about 8.7 M☉ MIST's rotating stars live 1–31% longer at −2: rotational mixing is stronger at low metallicity, where winds carry off less angular momentum (Choi et al. 2016, fig. 20). Reported as a result (`tests/test_experiments.py`) |
+| 3 | Scientific | Remnants against metallicity | final helium-core masses, and black-hole masses below the gap, rise as metallicity falls; which initial masses reach the gap is reported as a result, with no target | Heger et al. 2003 | **Passed (11 Nov 2026):** over 20–100 M☉ stars the median final helium core rises from 8.4 M☉ at [Fe/H] +0.5 to 26–28 M☉ at −1.5 to −2.5, and the median black hole below the gap from 3.5 to 25–28 M☉; below about −1.5 both level off (rank correlation with [Fe/H] −0.66 and −0.49). Every median at [Fe/H] ≤ −1.5 exceeds every one at ≥ 0. The gap boundary is in `remnant-map` (`tests/test_experiments.py`) |
 | 4 | Numerical | Lane–Emden constants | n = 1.5: ξ₁ = 3.65375, ρc/ρ̄ = 5.99071; n = 3: ξ₁ = 6.89685, ρc/ρ̄ = 54.1825 | Chandrasekhar 1939; recomputed | Not run |
 | 4 | Numerical | Eddington standard model | the Sun's central temperature at 1.21 × 10⁷ K (μ = 0.617) | recomputed | Not run |
 | 4 | Scientific | Solver against MIST: Sun-like (gate) | at 1 M☉ and [Fe/H] = 0.0: log L and log R within 0.1 dex, log Tc within 0.05 dex, at MIST's zero-age EEP with matched X, Y, Z | MIST zero-age main sequence | Not run |

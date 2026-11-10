@@ -3,7 +3,7 @@
 BEDARD := $(HOME)/.cache/stellar-forge/bedard2020/AllSequences.tar.gz
 UV := $(shell command -v uv || echo $(HOME)/.local/bin/uv)
 
-.PHONY: setup check dev bench data export
+.PHONY: setup check dev bench data export experiments
 
 setup:
 	$(UV) sync
@@ -34,3 +34,7 @@ data:
 export:
 	OMP_NUM_THREADS=1 .venv/bin/python -m stellarforge.export web
 	.venv/bin/python -m stellarforge.evolution check
+
+# The six Phase 3 experiments into results/ (timestamped), and copies for the Experiments view.
+experiments:
+	OMP_NUM_THREADS=1 .venv/bin/python -m stellarforge.experiments all --export

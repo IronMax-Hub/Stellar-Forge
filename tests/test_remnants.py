@@ -70,6 +70,10 @@ def test_every_grid_star_has_a_record():
                               "not predicted")
             assert "single_star_assumed" in r.flags and r.how
             assert (r.mass_msun is None) == (r.type in ("none", "not yet", "not predicted"))
+            # Only core collapse has a different prescription; elsewhere the alternative repeats
+            # the outcome (a "none" here would claim the star was destroyed)
+            if r.provenance != "predicted":
+                assert r.alternative["type"] == r.type
 
 
 @needs_data

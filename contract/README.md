@@ -7,7 +7,11 @@ web loader parses it. Both assert the same `schema_version`. The tests check sha
 Changing the format: edit the fixture, raise `schema_version` by one in the fixture,
 `stellarforge/__init__.py` and `web/src/data/types.ts`, and update both sides until both tests pass.
 
-Schema version 3 (Phase 2: each track carries its `remnant`; version 2 moved `track` inside `grid`). The fixture's numbers are hand-written test data, not physics.
+Schema version 4 (Phase 3: the `experiment` block; version 3 added `remnant`, version 2 moved
+`track` inside `grid`). The fixture's numbers are hand-written test data, not physics.
+
+A document is `meta` plus one or more blocks: Star Builder files carry `grid`, experiment results
+carry `experiment`. The fixture holds every block.
 
 ## `meta` — carried by every export
 
@@ -78,3 +82,31 @@ Fields marked "or null" are null when there is no remnant or MIST gives no value
 
 Field names end in their unit (`_msun`, `_lsun`, `_rsun`, `_k`, `_yr`, `_au`, `_mearth`) and logs
 start with `log_`.
+
+## `experiment` — one experiment's result (`stellarforge/experiments.py`)
+
+Written to `results/<experiment>/<time>/result.json` and, with `--export`, to
+`web/public/data/experiments/<experiment>.json`.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `name` | string | the command that made it, such as `lifetime-map` |
+| `title`, `summary` | strings | what it shows, in words |
+| `panels` | list of `panel` | the result's figures |
+
+A `panel` is a heatmap (one row per [Fe/H], one cell per `x_values` entry), curves (one row per
+curve over `x_values`) or a table (one cell per `columns` entry).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `title` | string | the panel's title |
+| `kind` | `heatmap`, `curves` or `table` | how it is drawn |
+| `x_label`, `y_label`, `value_label` | strings | axis and value names, with units |
+| `log_x`, `log_values` | booleans | draw x, or the values, on a log scale |
+| `x_values` | numbers | heatmap columns or curve x (empty for a table) |
+| `columns` | strings | table column names (empty otherwise) |
+| `rows[].label` | string | the row's or curve's name |
+| `rows[].y` | number or null | a heatmap row's y value |
+| `rows[].values` | numbers or nulls | one per cell; null where the cell has no number |
+| `rows[].labels` | strings or nulls | one per cell: a word shown instead of the number, such as `track incomplete` or a remnant type |
+| `rows[].provenance` | provenances or nulls | one per cell: where its value came from |

@@ -1,12 +1,14 @@
-// Star Builder (Phase 1): pick a mass and [Fe/H] from the exported grid and scrub a star's life.
-// Every number shown comes from web/public/data, written by `python -m stellarforge.export web`;
-// this file only selects, scales and draws.
+// The app: Star Builder (Phases 1-2) and Experiments (Phase 3).
+// Star Builder: pick a mass and [Fe/H] from the exported grid and scrub a star's life, then see its
+// remnant. Every number shown comes from web/public/data, written by `python -m stellarforge.export
+// web`; this file only selects, scales and draws.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { parseDocument } from "./data/loader";
-import type { Provenance, Remnant, StellarDocument, Track } from "./data/types";
+import type { Grid, Meta, Provenance, Remnant, Track } from "./data/types";
+import Experiments from "./Experiments";
 import { BLACK_HOLE_DISTANCE, BlackHoleView, START_ELEVATION_DEG } from "./rendering/blackHole/BlackHoleView";
 import { starDisplayCss } from "./rendering/starColour";
 
@@ -14,20 +16,29 @@ const DATA = `${import.meta.env.BASE_URL}data/`;
 const FIRST_FILE = "tracks_feh_+0.0.json";
 const SUN_AGE_YR = 4.57e9; // where the first star opens: the Sun today
 
-const cache = new Map<string, Promise<StellarDocument>>();
-function load(file: string): Promise<StellarDocument> {
+interface GridFile {
+  meta: Meta;
+  grid: Grid;
+}
+
+const cache = new Map<string, Promise<GridFile>>();
+function load(file: string): Promise<GridFile> {
   if (!cache.has(file)) {
     cache.set(file, fetch(DATA + file).then((r) => {
       if (!r.ok) throw new Error(`${file}: HTTP ${r.status}; run \`make export\``);
       return r.json();
-    }).then(parseDocument));
+    }).then((raw) => {
+      const { meta, grid } = parseDocument(raw);
+      if (!grid) throw new Error(`${file} holds no grid`);
+      return { meta, grid };
+    }));
   }
   return cache.get(file)!;
 }
 
 /** Slider steps go one [Fe/H] at a time, so the neighbours are fetched ahead (a first load takes ~60 ms).
  * Files more than two steps away are dropped, so a full sweep does not keep all 46 grids in memory. */
-function prefetchAround({ grid }: StellarDocument) {
+function prefetchAround({ grid }: GridFile) {
   const k = grid.feh_values.indexOf(grid.feh);
   for (const file of cache.keys()) {
     if (Math.abs(grid.files.indexOf(file) - k) > 2) cache.delete(file);
@@ -40,7 +51,27 @@ function prefetchAround({ grid }: StellarDocument) {
 const fmt = (x: number, digits = 4) => x.toPrecision(digits);
 
 export default function App() {
-  const [doc, setDoc] = useState<StellarDocument | null>(null);
+  const [view, setView] = useState<"star" | "experiments">("star");
+  // Experiments load on first opening; after that both views stay mounted and keep their state
+  const [experimentsOpened, setExperimentsOpened] = useState(false);
+  const show = (v: "star" | "experiments") => {
+    setView(v);
+    if (v === "experiments") setExperimentsOpened(true);
+  };
+  return (
+    <>
+      <nav className="tabs" aria-label="Views">
+        <button aria-pressed={view === "star"} onClick={() => show("star")}>Star Builder</button>
+        <button aria-pressed={view === "experiments"} onClick={() => show("experiments")}>Experiments</button>
+      </nav>
+      <div hidden={view !== "star"}><StarBuilder /></div>
+      {experimentsOpened && <div hidden={view !== "experiments"}><Experiments /></div>}
+    </>
+  );
+}
+
+function StarBuilder() {
+  const [doc, setDoc] = useState<GridFile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [massIndex, setMassIndex] = useState<number | null>(null);
   const [point, setPoint] = useState(0);

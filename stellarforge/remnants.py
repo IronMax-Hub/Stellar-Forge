@@ -191,7 +191,10 @@ def remnant(track: Track, initial_mass_msun: float) -> Remnant:
     m_he = float("nan") if track.ending == NO_HE_CORE else m_he
     base = {"final_mass_msun": m_final, "he_core_mass_msun": m_he, "co_core_mass_msun": m_co,
             "flags": ["single_star_assumed", *track.flags]}
-    none = {"prescription": "none", "type": "none", "mass_msun": None}
+
+    def same(kind: str) -> dict:
+        """No alternative prescription applies: the alternative is the same outcome, without a mass."""
+        return {"prescription": "no alternative", "type": kind, "mass_msun": None}
 
     if track.ending == "white-dwarf cooling sequence":
         cooling, flags = cooling_track(m_final)
@@ -203,7 +206,7 @@ def remnant(track: Track, initial_mass_msun: float) -> Remnant:
             how="The star sheds its envelope on the asymptotic giant branch; its exposed core "
                 "cools as a white dwarf.",
             alternative={"prescription": "Cummings et al. 2018, MIST-based relation",
-                         "type": "white dwarf", "mass_msun": ifmr} if ifmr else none,
+                         "type": "white dwarf", "mass_msun": ifmr} if ifmr else same("white dwarf"),
             cooling=cooling, **{**base, "flags": base["flags"] + flags})
 
     # Above 45 M☉ of helium core the pair-instability rules decide, without the CO core
@@ -228,7 +231,7 @@ def remnant(track: Track, initial_mass_msun: float) -> Remnant:
         return Remnant(type="not yet", mass_msun=None, radius_km=None, provenance="derived",
                        prescription="none", how="Still on the main sequence where its MIST "
                        "track ends; it has not reached the end of its life.",
-                       alternative=none, **base)
+                       alternative=same("not yet"), **base)
     how = (f"Its MIST track reaches the {CARBON_END}, but MIST gives no "
            f"{'CO-core' if track.ending == NO_CO_CORE else 'helium-core'} mass there, which the "
            "remnant rules need, so no remnant is predicted."
@@ -236,4 +239,4 @@ def remnant(track: Track, initial_mass_msun: float) -> Remnant:
            f"Its MIST track stops at {track.ending}, before a final phase, so no remnant is "
            "predicted.")
     return Remnant(type="not predicted", mass_msun=None, radius_km=None, provenance="derived",
-                   prescription="none", how=how, alternative=none, **base)
+                   prescription="none", how=how, alternative=same("not predicted"), **base)

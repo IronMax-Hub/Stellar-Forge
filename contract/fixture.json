@@ -1,6 +1,6 @@
 {
  "meta": {
-  "schema_version": 3,
+  "schema_version": 4,
   "generator": {
    "name": "stellarforge",
    "version": "0.1.0",
@@ -145,6 +145,73 @@
       ]
      }
     }
+   }
+  ]
+ },
+ "experiment": {
+  "name": "lifetime-map",
+  "title": "Hand-written test experiment",
+  "summary": "Hand-written test data, not physics.",
+  "panels": [
+   {
+    "title": "Main-sequence lifetime",
+    "kind": "heatmap",
+    "x_label": "Initial mass (M☉)",
+    "y_label": "[Fe/H]",
+    "value_label": "years",
+    "log_x": true,
+    "log_values": true,
+    "x_values": [
+     1.0,
+     2.0
+    ],
+    "columns": [],
+    "rows": [
+     {
+      "label": "+0.0",
+      "y": 0.0,
+      "values": [
+       9900000000.0,
+       null
+      ],
+      "labels": [
+       null,
+       "track incomplete"
+      ],
+      "provenance": [
+       "published",
+       null
+      ]
+     }
+    ]
+   },
+   {
+    "title": "1 M☉",
+    "kind": "table",
+    "x_label": "",
+    "y_label": "",
+    "value_label": "",
+    "log_x": false,
+    "log_values": false,
+    "x_values": [],
+    "columns": [
+     "Lifetime (Gyr)"
+    ],
+    "rows": [
+     {
+      "label": "[Fe/H] +0.0",
+      "y": null,
+      "values": [
+       9.9
+      ],
+      "labels": [
+       null
+      ],
+      "provenance": [
+       "published"
+      ]
+     }
+    ]
    }
   ]
  }

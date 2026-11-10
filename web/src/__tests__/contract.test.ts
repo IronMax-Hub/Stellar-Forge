@@ -14,7 +14,7 @@ describe("data contract", () => {
   it("parses the shared fixture", () => {
     const doc = parseDocument(fixture());
     expect(doc.meta.schema_version).toBe(SCHEMA_VERSION);
-    const track = doc.grid.tracks[0];
+    const track = doc.grid!.tracks[0];
     expect(track.rgb).toHaveLength(track.age_yr.length);
     expect(doc.meta.references[0].doi).toMatch(/^10\./);
   });
@@ -43,9 +43,25 @@ describe("data contract", () => {
     const remnant = (raw: Raw) => (raw.grid.tracks as Record<string, Record<string, unknown>>[])[0].remnant;
     const none = fixture();
     Object.assign(remnant(none), { type: "not yet", mass_msun: null, radius_km: null, cooling: null });
-    expect(parseDocument(none).grid.tracks[0].remnant.mass_msun).toBeNull();
+    expect(parseDocument(none).grid!.tracks[0].remnant.mass_msun).toBeNull();
     const odd = fixture();
     remnant(odd).type = "quark star";
     expect(() => parseDocument(odd)).toThrow(/remnant\.type/);
+  });
+
+  it("reads a document with only an experiment, checks cell counts, and needs a block", () => {
+    const raw = fixture();
+    delete raw.grid;
+    const doc = parseDocument(raw);
+    expect(doc.grid).toBeUndefined();
+    expect(doc.experiment!.panels[0].rows[0].labels[1]).toBe("track incomplete");
+    const short = fixture();
+    const panel = (short.experiment.panels as { rows: { values: unknown[] }[] }[])[0];
+    panel.rows[0].values.pop();
+    expect(() => parseDocument(short)).toThrow(/rows\[0\]\.values/);
+    const empty = fixture();
+    delete empty.grid;
+    delete empty.experiment;
+    expect(() => parseDocument(empty)).toThrow(/grid or an experiment/);
   });
 });
