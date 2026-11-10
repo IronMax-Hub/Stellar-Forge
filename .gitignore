@@ -3,3 +3,15 @@
 documentation/references/*
 !documentation/references/README.md
 !documentation/references/scripts/
+
+# Environments, caches and build output
+.venv/
+node_modules/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+web/dist/
+
+# Generated data and results: rebuilt by `make export` and the experiment runner
+web/public/data/
+results/

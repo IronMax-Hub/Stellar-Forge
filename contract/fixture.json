@@ -1,0 +1,27 @@
+{
+ "meta": {
+  "schema_version": 1,
+  "generator": {"name": "stellarforge", "version": "0.1.0", "git_commit": "0000000"},
+  "dataset": "none: hand-written test star for the Phase 0 contract, not MIST",
+  "models": {"colour": "hand-written"},
+  "inputs": {"mass_msun": 1.0, "feh": 0.0},
+  "seed": null,
+  "created": "2026-11-11T00:00:00Z",
+  "references": [
+   {
+    "key": "Choi2016",
+    "citation": "Choi 2016, The Astrophysical Journal, 823, 102: MESA ISOCHRONES AND STELLAR TRACKS (MIST). I. SOLAR-SCALED MODELS",
+    "doi": "10.3847/0004-637x/823/2/102"
+   }
+  ]
+ },
+ "track": {
+  "provenance": "derived",
+  "flags": ["hand_written_test_data"],
+  "age_yr": [5.0e7, 4.57e9, 9.0e9],
+  "log_l_lsun": [-0.155, 0.0, 0.2],
+  "log_teff_k": [3.75, 3.7613, 3.76],
+  "log_r_rsun": [-0.055, 0.0, 0.1],
+  "rgb": [[1.0, 0.92, 0.84], [1.0, 0.94, 0.88], [1.0, 0.93, 0.87]]
+ }
+}

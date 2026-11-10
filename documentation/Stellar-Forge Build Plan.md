@@ -119,7 +119,16 @@ Every phase fits this machine if raw data is streamed instead of unpacked, jobs 
 | Planet population grid | 5,000 systems in each of 120 cells | 10–40 min on 4 workers |
 | Export everything for the web | all phases | under 5 min |
 
-These times are estimates; Phase 0 runs a short benchmark on this machine and replaces them with measured numbers.
+**Measured on this machine (11 November 2026, `make bench`, one thread):**
+
+| Measurement | Result | What it changes |
+| --- | --- | --- |
+| Blend two 1,500-point, 20-column tracks | 0.1 ms | building one star's track is far inside its 50 ms estimate |
+| `np.interp`, 200,000 points | 12 ms | resampling tracks is not a bottleneck |
+| Matrix product, 1,500 × 1,500 | 118 ms | — |
+| xz decompression of table-like text | 74 MB/s of text out, 30 MB/s of archive in | decompressing all 1.5 GB of MIST archives takes about a minute; parsing the text will set the conversion time |
+
+The decompression test uses synthetic text, so its rate is a guide. The other times in the table above are still estimates: each phase measures its own job when the job exists, and Phase 1 times one real MIST archive before converting the rest.
 
 **Out of scope on this machine** — each is replaced by a published model or a light visual (rule 1):
 
@@ -740,7 +749,7 @@ These choices change what gets downloaded or built. Until you decide, the plan u
 
 - [ ] **MIST version:** keep v1.2 as the starting dataset and decide on v2.5 after Phase 1's comparison? v1.2 is fully published and about 1.5 GB, but follows stars to the end only for [Fe/H] ≥ −2.0. v2.5 was released in February 2026 with its paper in press; it uses GS98 abundances and has α-enhanced grids, and its size and low-metallicity coverage are unchecked. Suggested: yes; the comparison report (Phase 1, step 3) decides before the dataset format is fixed.
 - [ ] **Rotation:** use MIST's rotating tracks (v/vcrit = 0.4, the default), the non-rotating set, or both? Both doubles the download to about 2.8 GB. Suggested: rotating only, with its coverage verified before downloading more.
-- [ ] **Python:** may uv be installed in your home folder to provide Python 3.12, leaving system Python 3.10 as it is? Suggested: yes.
+- [x] **Python:** uv is installed in your home folder (`~/.local/bin/uv`, from PyPI) and provides Python 3.12 in `.venv`; system Python 3.10 is untouched (decided 11 November 2026).
 - [ ] **External disk:** the 2 TB drive is mounted under the lawsikho account and this account cannot read it. Do you want it made readable as cold storage for raw archives? Suggested: no; the build does not depend on it.
 - [ ] **Planet host range:** model 0.2–1.5 M☉, the range Ida & Lin studied, or extend to 3 M☉ labelled as extrapolation? Suggested: 0.2–1.5 M☉ first.
 - [ ] **Licence:** MIT, GPL, or keep Stellar-Forge private? The repository is public today. Suggested: decide before the first push of code, after checking the licences of MIST data and every dependency.

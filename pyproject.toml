@@ -1,0 +1,21 @@
+[project]
+name = "stellarforge"
+version = "0.1.0"
+description = "Star and planet evolution from published physics"
+requires-python = ">=3.12,<3.13"
+dependencies = ["numpy", "scipy", "pandas", "matplotlib"]
+
+[dependency-groups]
+dev = ["pytest", "ruff"]
+
+# Exact versions are pinned in uv.lock.
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+extend-exclude = ["documentation", "web"]

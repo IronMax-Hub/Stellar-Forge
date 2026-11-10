@@ -1,0 +1,307 @@
+[
+ {
+  "key": "Choi2016",
+  "citation": "Choi 2016, The Astrophysical Journal, 823, 102: MESA ISOCHRONES AND STELLAR TRACKS (MIST). I. SOLAR-SCALED MODELS",
+  "doi": "10.3847/0004-637x/823/2/102"
+ },
+ {
+  "key": "Dotter2016",
+  "citation": "Dotter 2016, The Astrophysical Journal Supplement Series, 222, 8: MESA ISOCHRONES AND STELLAR TRACKS (MIST) 0: METHODS FOR THE CONSTRUCTION OF STELLAR ISOCHRONES",
+  "doi": "10.3847/0067-0049/222/1/8"
+ },
+ {
+  "key": "Paxton2011",
+  "citation": "Paxton 2011, The Astrophysical Journal Supplement Series, 192, 3: MODULES FOR EXPERIMENTS IN STELLAR ASTROPHYSICS (MESA)",
+  "doi": "10.1088/0067-0049/192/1/3"
+ },
+ {
+  "key": "Asplund2009",
+  "citation": "Asplund 2009, Annual Review of Astronomy and Astrophysics, 47, 481-522: The Chemical Composition of the Sun",
+  "doi": "10.1146/annurev.astro.46.060407.145222"
+ },
+ {
+  "key": "Prsa2016",
+  "citation": "Prša 2016, The Astronomical Journal, 152, 41: NOMINAL VALUES FOR SELECTED SOLAR AND PLANETARY QUANTITIES: IAU 2015 RESOLUTION B3\n                    <sup>*</sup>\n                    <sup>†</sup>",
+  "doi": "10.3847/0004-6256/152/2/41"
+ },
+ {
+  "key": "Cummings2018",
+  "citation": "Cummings 2018, The Astrophysical Journal, 866, 21: The White Dwarf Initial–Final Mass Relation for Progenitor Stars from 0.85 to 7.5\n                    <i>M</i>\n                    <sub>⊙</sub>",
+  "doi": "10.3847/1538-4357/aadfd6"
+ },
+ {
+  "key": "Poelarends2008",
+  "citation": "Poelarends 2008, The Astrophysical Journal, 675, 614-625: The Supernova Channel of Super‐AGB Stars",
+  "doi": "10.1086/520872"
+ },
+ {
+  "key": "Fryer2012",
+  "citation": "Fryer 2012, The Astrophysical Journal, 749, 91: COMPACT REMNANT MASS FUNCTION: DEPENDENCE ON THE EXPLOSION MECHANISM AND METALLICITY",
+  "doi": "10.1088/0004-637x/749/1/91"
+ },
+ {
+  "key": "HegerWoosley2002",
+  "citation": "Heger 2002, The Astrophysical Journal, 567, 532-543: The Nucleosynthetic Signature of Population III",
+  "doi": "10.1086/338487"
+ },
+ {
+  "key": "Heger2003",
+  "citation": "Heger 2003, The Astrophysical Journal, 591, 288-300: How Massive Single Stars End Their Life",
+  "doi": "10.1086/375341"
+ },
+ {
+  "key": "Belczynski2016",
+  "citation": "Belczynski 2016, Astronomy &amp; Astrophysics, 594, A97: The effect of pair-instability mass loss on black-hole mergers",
+  "doi": "10.1051/0004-6361/201628980"
+ },
+ {
+  "key": "Farmer2019",
+  "citation": "Farmer 2019, The Astrophysical Journal, 887, 53: Mind the Gap: The Location of the Lower Edge of the Pair-instability Supernova Black Hole Mass Gap",
+  "doi": "10.3847/1538-4357/ab518b"
+ },
+ {
+  "key": "Bedard2020",
+  "citation": "Bédard 2020, The Astrophysical Journal, 901, 93: On the Spectral Evolution of Hot White Dwarf Stars. I. A Detailed Model Atmosphere Analysis of Hot White Dwarfs from SDSS DR12",
+  "doi": "10.3847/1538-4357/abafbe"
+ },
+ {
+  "key": "Hobbs2005",
+  "citation": "Hobbs 2005, Monthly Notices of the Royal Astronomical Society, 360, 974-992: A statistical study of 233 pulsar proper motions",
+  "doi": "10.1111/j.1365-2966.2005.09087.x"
+ },
+ {
+  "key": "Chandrasekhar1939",
+  "citation": "Poincaré 1958, Physics Today, 11, 36-36: <i>Les Méthodes nouvelles de la Mécanique céleste</i> and <i>An Introduction to the Study of Stellar Structure</i>",
+  "doi": "10.1063/1.3062659"
+ },
+ {
+  "key": "Kippenhahn2012",
+  "citation": "Kippenhahn 2012, Astronomy and Astrophysics Library: Stellar Structure and Evolution",
+  "doi": "10.1007/978-3-642-30304-3"
+ },
+ {
+  "key": "IglesiasRogers1996",
+  "citation": "Iglesias 1996, The Astrophysical Journal, 464, 943: Updated Opal Opacities",
+  "doi": "10.1086/177381"
+ },
+ {
+  "key": "Angulo1999",
+  "citation": "Angulo 1999, Nuclear Physics A, 656, 3-183: A compilation of charged-particle induced thermonuclear reaction rates",
+  "doi": "10.1016/s0375-9474(99)00030-5"
+ },
+ {
+  "key": "Hayashi1981",
+  "citation": "Hayashi 1981, Progress of Theoretical Physics Supplement, 70, 35-53: Structure of the Solar Nebula, Growth and Decay of Magnetic Fields and Effects of Magnetic and Turbulent Viscosities on the Nebula",
+  "doi": "10.1143/ptps.70.35"
+ },
+ {
+  "key": "IdaLin2004a",
+  "citation": "Ida 2004, The Astrophysical Journal, 604, 388-413: Toward a Deterministic Model of Planetary Formation. I. A Desert in the Mass and Semimajor Axis Distributions of Extrasolar Planets",
+  "doi": "10.1086/381724"
+ },
+ {
+  "key": "IdaLin2004b",
+  "citation": "Ida 2004, The Astrophysical Journal, 616, 567-572: Toward a Deterministic Model of Planetary Formation. II. The Formation and Retention of Gas Giant Planets around Stars with a Range of Metallicities",
+  "doi": "10.1086/424830"
+ },
+ {
+  "key": "IdaLin2005",
+  "citation": "Ida 2005, The Astrophysical Journal, 626, 1045-1060: Toward a Deterministic Model of Planetary Formation. III. Mass Distribution of Short‐Period Planets around Stars of Various Masses",
+  "doi": "10.1086/429953"
+ },
+ {
+  "key": "IdaLin2008a",
+  "citation": "Ida 2008, The Astrophysical Journal, 673, 487-501: Toward a Deterministic Model of Planetary Formation. IV. Effects of Type I Migration",
+  "doi": "10.1086/523754"
+ },
+ {
+  "key": "IdaLin2008b",
+  "citation": "Ida 2008, The Astrophysical Journal, 685, 584-595: Toward a Deterministic Model of Planetary Formation. V. Accumulation Near the Ice Line and Super‐Earths",
+  "doi": "10.1086/590401"
+ },
+ {
+  "key": "IdaLin2010",
+  "citation": "Ida 2010, The Astrophysical Journal, 719, 810-830: TOWARD A DETERMINISTIC MODEL OF PLANETARY FORMATION. VI. DYNAMICAL INTERACTION AND COAGULATION OF MULTIPLE ROCKY EMBRYOS AND SUPER-EARTH SYSTEMS AROUND SOLAR-TYPE STARS",
+  "doi": "10.1088/0004-637x/719/1/810"
+ },
+ {
+  "key": "KokuboIda1998",
+  "citation": "Kokubo 1998, Icarus, 131, 171-178: Oligarchic Growth of Protoplanets",
+  "doi": "10.1006/icar.1997.5840"
+ },
+ {
+  "key": "KokuboIda2002",
+  "citation": "Kokubo 2002, The Astrophysical Journal, 581, 666-680: Formation of Protoplanet Systems and Diversity of Planetary Systems",
+  "doi": "10.1086/344105"
+ },
+ {
+  "key": "Ikoma2000",
+  "citation": "Ikoma 2000, The Astrophysical Journal, 537, 1013-1025: Formation of Giant Planets: Dependences on Core Accretion Rate and Grain Opacity",
+  "doi": "10.1086/309050"
+ },
+ {
+  "key": "Andrews2013",
+  "citation": "Andrews 2013, The Astrophysical Journal, 771, 129: THE MASS DEPENDENCE BETWEEN PROTOPLANETARY DISKS AND THEIR STELLAR HOSTS",
+  "doi": "10.1088/0004-637x/771/2/129"
+ },
+ {
+  "key": "Mamajek2009",
+  "citation": "Mamajek 2009, AIP Conference Proceedings, 3-10: Initial Conditions of Planet Formation: Lifetimes of Primordial Disks",
+  "doi": "10.1063/1.3215910"
+ },
+ {
+  "key": "ChenKipping2017",
+  "citation": "Chen 2017, The Astrophysical Journal, 834, 17: PROBABILISTIC FORECASTING OF THE MASSES AND RADII OF OTHER WORLDS",
+  "doi": "10.3847/1538-4357/834/1/17"
+ },
+ {
+  "key": "LambrechtsJohansen2012",
+  "citation": "Lambrechts 2012, Astronomy &amp; Astrophysics, 544, A32: Rapid growth of gas-giant cores by pebble accretion",
+  "doi": "10.1051/0004-6361/201219127"
+ },
+ {
+  "key": "Emsenhuber2021",
+  "citation": "Emsenhuber 2021, Astronomy &amp; Astrophysics, 656, A69: The New Generation Planetary Population Synthesis (NGPPS)",
+  "doi": "10.1051/0004-6361/202038553"
+ },
+ {
+  "key": "FischerValenti2005",
+  "citation": "Fischer 2005, The Astrophysical Journal, 622, 1102-1117: The Planet‐Metallicity Correlation",
+  "doi": "10.1086/428383"
+ },
+ {
+  "key": "Johnson2010",
+  "citation": "Johnson 2010, Publications of the Astronomical Society of the Pacific, 122, 905-915: Giant Planet Occurrence in the Stellar Mass-Metallicity Plane",
+  "doi": "10.1086/655775"
+ },
+ {
+  "key": "Cumming2008",
+  "citation": "Cumming 2008, Publications of the Astronomical Society of the Pacific, 120, 531-554: The Keck Planet Search: Detectability and the Minimum Mass and Orbital Period Distribution of Extrasolar Planets",
+  "doi": "10.1086/588487"
+ },
+ {
+  "key": "Buchhave2012",
+  "citation": "Buchhave 2012, Nature, 486, 375-377: An abundance of small exoplanets around stars with a wide range of metallicities",
+  "doi": "10.1038/nature11121"
+ },
+ {
+  "key": "Petigura2018",
+  "citation": "Petigura 2018, The Astronomical Journal, 155, 89: The California-Kepler Survey. IV. Metal-rich Stars Host a Greater Diversity of Planets",
+  "doi": "10.3847/1538-3881/aaa54c"
+ },
+ {
+  "key": "Kopparapu2013",
+  "citation": "Kopparapu 2013, The Astrophysical Journal, 765, 131: HABITABLE ZONES AROUND MAIN-SEQUENCE STARS: NEW ESTIMATES",
+  "doi": "10.1088/0004-637x/765/2/131"
+ },
+ {
+  "key": "Kopparapu2014",
+  "citation": "Kopparapu 2014, The Astrophysical Journal, 787, L29: HABITABLE ZONES AROUND MAIN-SEQUENCE STARS: DEPENDENCE ON PLANETARY MASS",
+  "doi": "10.1088/2041-8205/787/2/l29"
+ },
+ {
+  "key": "Veras2011",
+  "citation": "Veras 2011, Monthly Notices of the Royal Astronomical Society, 417, 2104-2123: The great escape: how exoplanets and smaller bodies desert dying stars",
+  "doi": "10.1111/j.1365-2966.2011.19393.x"
+ },
+ {
+  "key": "Zahn1977",
+  "citation": "Spangler 1977, The Astronomical Journal, 82, 989: Radio survey of close binary stars",
+  "doi": "10.1086/112161"
+ },
+ {
+  "key": "VerbuntPhinney1995",
+  "citation": "Verbunt 1995, ESO Astrophysics Symposia, 124-133: Compact Stars In and Out of Binaries",
+  "doi": "10.1007/978-3-540-49215-3_16"
+ },
+ {
+  "key": "VillaverLivio2009",
+  "citation": "Villaver 2009, The Astrophysical Journal, 705, L81-L85: THE ORBITAL EVOLUTION OF GAS GIANT PLANETS AROUND GIANT STARS",
+  "doi": "10.1088/0004-637x/705/1/l81"
+ },
+ {
+  "key": "MustillVillaver2012",
+  "citation": "Mustill 2012, The Astrophysical Journal, 761, 121: FORETELLINGS OF RAGNARÖK: WORLD-ENGULFING ASYMPTOTIC GIANTS AND THE INHERITANCE OF WHITE DWARFS",
+  "doi": "10.1088/0004-637x/761/2/121"
+ },
+ {
+  "key": "SchroderSmith2008",
+  "citation": "SchrÃ¶der 2008, Monthly Notices of the Royal Astronomical Society, 386, 155-163: Distant future of the Sun and Earth revisited",
+  "doi": "10.1111/j.1365-2966.2008.13022.x"
+ },
+ {
+  "key": "Hills1983",
+  "citation": "Hills 1983, The Astrophysical Journal, 267, 322: The effects of sudden mass loss and a random kick velocity produced in a supernova explosion on the dynamics of a binary star of arbitrary orbital eccentricity - Applications to X-ray binaries and to the binary pulsars",
+  "doi": "10.1086/160871"
+ },
+ {
+  "key": "WolszczanFrail1992",
+  "citation": "Wolszczan 1992, Nature, 355, 145-147: A planetary system around the millisecond pulsar PSR1257 + 12",
+  "doi": "10.1038/355145a0"
+ },
+ {
+  "key": "OwenWu2017",
+  "citation": "Owen 2017, The Astrophysical Journal, 847, 29: The Evaporation Valley in the Kepler Planets",
+  "doi": "10.3847/1538-4357/aa890a"
+ },
+ {
+  "key": "Fulton2017",
+  "citation": "Fulton 2017, The Astronomical Journal, 154, 109: The California-Kepler Survey. III. A Gap in the Radius Distribution of Small Planets*",
+  "doi": "10.3847/1538-3881/aa80eb"
+ },
+ {
+  "key": "Kroupa2001",
+  "citation": "Kroupa 2001, Monthly Notices of the Royal Astronomical Society, 322, 231-246: On the variation of the initial mass function",
+  "doi": "10.1046/j.1365-8711.2001.04022.x"
+ },
+ {
+  "key": "HolmanWiegert1999",
+  "citation": "Holman 1999, The Astronomical Journal, 117, 621-628: Long-Term Stability of Planets in Binary Systems",
+  "doi": "10.1086/300695"
+ },
+ {
+  "key": "Wright2011",
+  "citation": "Wright 2011, The Astrophysical Journal, 743, 48: THE STELLAR-ACTIVITY-ROTATION RELATIONSHIP AND THE EVOLUTION OF STELLAR DYNAMOS",
+  "doi": "10.1088/0004-637x/743/1/48"
+ },
+ {
+  "key": "Ribas2005",
+  "citation": "Ribas 2005, The Astrophysical Journal, 622, 680-694: Evolution of the Solar Activity over Time and Effects on Planetary Atmospheres. I. High‐Energy Irradiances (1–1700 A)",
+  "doi": "10.1086/427977"
+ },
+ {
+  "key": "ZahnleCatling2017",
+  "citation": "Zahnle 2017, The Astrophysical Journal, 843, 122: The Cosmic Shoreline: The Evidence that Escape Determines which Planets Have Atmospheres, and what this May Mean for Proxima Centauri B",
+  "doi": "10.3847/1538-4357/aa7846"
+ },
+ {
+  "key": "Sana2012",
+  "citation": "Sana 2012, Science, 337, 444-446: Binary Interaction Dominates the Evolution of Massive Stars",
+  "doi": "10.1126/science.1223344"
+ },
+ {
+  "key": "OzelFreire2016",
+  "citation": "Özel 2016, Annual Review of Astronomy and Astrophysics, 54, 401-440: Masses, Radii, and the Equation of State of Neutron Stars",
+  "doi": "10.1146/annurev-astro-081915-023322"
+ },
+ {
+  "key": "Riley2019",
+  "citation": "Riley 2019, The Astrophysical Journal Letters, 887, L21: A NICER View of PSR J0030+0451: Millisecond Pulsar Parameter Estimation",
+  "doi": "10.3847/2041-8213/ab481c"
+ },
+ {
+  "key": "Miller2019",
+  "citation": "Miller 2019, The Astrophysical Journal Letters, 887, L24: PSR J0030+0451 Mass and Radius from NICER Data and Implications for the Properties of Neutron Star Matter",
+  "doi": "10.3847/2041-8213/ab50c5"
+ },
+ {
+  "key": "Gough1981",
+  "citation": "Gough 1981, Physics of Solar Variations, 21-34: Solar Interior Structure and Luminosity Variations",
+  "doi": "10.1007/978-94-010-9633-1_4"
+ },
+ {
+  "key": "Woosley2017",
+  "citation": "Woosley 2017, The Astrophysical Journal, 836, 244: Pulsational Pair-instability Supernovae",
+  "doi": "10.3847/1538-4357/836/2/244"
+ }
+]
