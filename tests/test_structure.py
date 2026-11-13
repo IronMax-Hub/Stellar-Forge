@@ -4,7 +4,18 @@
 import numpy as np
 import pytest
 
-from stellarforge.structure import exact_theta, lane_emden, mean_molecular_weight, polytrope_star
+from stellarforge.structure import (
+    L_SUN_W,
+    M_SUN_KG,
+    R_SUN_M,
+    SIGMA_SB,
+    exact_theta,
+    lane_emden,
+    mean_molecular_weight,
+    mist_composition,
+    polytrope_star,
+    solve_zams,
+)
 
 
 @pytest.mark.parametrize("n", [0, 1, 5])
@@ -52,3 +63,39 @@ def test_eddington_standard_model_sun():
 def test_rejects_index_outside_range():
     with pytest.raises(ValueError):
         lane_emden(5.5)
+
+
+def test_mist_composition():
+    sun = mist_composition(0.0)   # Choi et al. 2016, table 1: X = 0.7154, Y = 0.2703, Z = 0.0142
+    assert (sun.y, sun.z) == pytest.approx((0.2703, 0.0142))
+    assert sun.x + sun.y + sun.z == pytest.approx(1.0)
+    assert mist_composition(-2.0).y == pytest.approx(0.249 + 1.5 * 0.000142)
+
+
+@pytest.fixture(scope="module")
+def sun_m3():
+    return solve_zams(1.0, 0.0)
+
+
+def test_milestone_3_sun_like_model_converges(sun_m3):
+    """Milestone 3: uniform composition, ideal gas plus radiation, electron-scattering opacity.
+    It must converge and be self-consistent; matching MIST waits for milestones 4 and 5."""
+    z = sun_m3
+    assert z.residual < 1e-6
+    n = len(z.m_kg)
+    assert len(z.r_m) == len(z.p_pa) == len(z.l_w) == len(z.t_k) == n == 200
+    assert np.all(np.diff(z.m_kg) > 0) and np.all(np.diff(z.r_m) > 0)
+    assert np.all(np.diff(z.p_pa) < 0) and np.all(np.diff(z.t_k) < 0)
+    assert np.all(np.diff(z.l_w) >= 0)
+    assert z.m_kg[-1] == pytest.approx(M_SUN_KG) and z.r_m[-1] == pytest.approx(z.radius_rsun * R_SUN_M)
+    assert z.l_w[-1] == pytest.approx(z.luminosity_lsun * L_SUN_W)
+    lum = 4 * np.pi * (z.radius_rsun * R_SUN_M) ** 2 * SIGMA_SB * z.teff_k**4
+    assert lum == pytest.approx(z.luminosity_lsun * L_SUN_W)
+    assert 1e7 < z.t_c_k < 3e7   # hydrogen burning temperatures
+
+
+def test_milestone_3_is_more_concentrated_than_uniform(sun_m3):
+    """Central density above the mean, as in every polytrope with n > 0."""
+    z = sun_m3
+    mean = M_SUN_KG / (4 / 3 * np.pi * (z.radius_rsun * R_SUN_M) ** 3)
+    assert z.rho_c_kg_m3 > 10 * mean
