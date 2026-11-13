@@ -1,6 +1,6 @@
 {
  "meta": {
-  "schema_version": 6,
+  "schema_version": 7,
   "generator": {
    "name": "stellarforge",
    "version": "0.1.0",
@@ -297,6 +297,108 @@
     "pressure_frac": [
      1.0,
      1.7e-09
+    ]
+   }
+  ]
+ },
+ "profiles": {
+  "models": [
+   {
+    "mass_msun": 1.0,
+    "feh": 0.0,
+    "provenance": "derived",
+    "method": "hand-written test profile",
+    "flags": [
+     "test"
+    ],
+    "x": 0.7154,
+    "y": 0.2703,
+    "z": 0.0143,
+    "log_l_lsun": -0.1,
+    "log_r_rsun": -0.04,
+    "log_teff_k": 3.75,
+    "log_t_c_k": 7.14,
+    "log_rho_c_kg_m3": 4.94,
+    "p_c_pa": 1.6e+16,
+    "energy_core_r_frac": 0.33,
+    "pp_share": 0.998,
+    "mist": {
+     "provenance": "published",
+     "log_l_lsun": -0.13,
+     "log_r_rsun": -0.05,
+     "log_teff_k": 3.76,
+     "log_t_c_k": 7.14,
+     "log_rho_c_kg_m3": 4.9,
+     "delta_log_l_lsun": 0.03,
+     "delta_log_r_rsun": 0.01,
+     "delta_log_teff_k": -0.01,
+     "delta_log_t_c_k": 0.0,
+     "delta_log_rho_c_kg_m3": 0.04
+    },
+    "r_frac": [
+     0.0,
+     0.5,
+     1.0
+    ],
+    "m_frac": [
+     0.0,
+     0.9,
+     1.0
+    ],
+    "l_frac": [
+     0.0,
+     1.0,
+     1.0
+    ],
+    "t_frac": [
+     1.0,
+     0.2,
+     0.0004
+    ],
+    "rho_frac": [
+     1.0,
+     0.01,
+     2e-09
+    ],
+    "p_frac": [
+     1.0,
+     0.001,
+     6e-13
+    ],
+    "eps_pp_w_kg": [
+     0.0015,
+     1e-08,
+     0.0
+    ],
+    "eps_cno_w_kg": [
+     2e-05,
+     0.0,
+     0.0
+    ],
+    "kappa_m2_kg": [
+     0.14,
+     2.0,
+     0.03
+    ],
+    "nabla": [
+     0.39,
+     0.4,
+     0.13
+    ],
+    "nabla_ad": [
+     0.4,
+     0.4,
+     0.39
+    ],
+    "nabla_rad": [
+     0.39,
+     3.0,
+     0.13
+    ],
+    "convective": [
+     false,
+     true,
+     false
     ]
    }
   ]

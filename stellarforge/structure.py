@@ -147,9 +147,10 @@ MIST_DY_DZ = 1.5
 # rates.
 EPS_PP0 = 1.07e-12
 
-# Milestone 4. The coefficients below are as given in Kippenhahn, Weigert & Weiss 2012 (cgs), quoted
-# from memory: the book is not in documentation/references, so each is listed in Source checks.md as
-# not yet checked.
+# Milestone 4. The coefficients below are as given in Kippenhahn, Weigert & Weiss 2012 (cgs). The book
+# is not in documentation/references; Source checks.md records each against open sources: Kramers
+# coefficients against Carroll & Ostlie via Wikipedia, the pp rate within 1-2% of one rebuilt from
+# Adams & Grohs 2017's p + p rate, the CNO rate's form (its coefficient is not checked).
 # Kramers opacity, cm^2/g: free-free 3.68e22 (1 - Z)(1 + X) rho T^-3.5, bound-free
 # 4.34e25 Z (1 + X) rho T^-3.5, with the Gaunt and guillotine factors set to 1.
 KAPPA_FF0_CGS = 3.68e22
@@ -161,8 +162,8 @@ KAPPA_BF0_CGS = 4.34e25
 # g14 = 1 - 2.00 T9 + 3.41 T9^2 - 2.43 T9^3.
 EPS_PP0_CGS = 2.57e4
 EPS_CNO0_CGS = 8.24e25
-# shortcut: C + N + O as a fixed share of Z, from Asplund et al. 2009's photospheric mass fractions
-# (not yet source-checked); upgrade by reading the mixture MIST uses.
+# shortcut: C + N + O as a fixed share of Z: 0.657 from Asplund et al. 2009's photospheric C, N, O
+# (table 1) with X and Z from their table 4, rounded; upgrade by reading the mixture MIST uses.
 CNO_SHARE_OF_Z = 0.66
 
 
@@ -271,7 +272,7 @@ def nabla_mlt(rad, ad, t, rho, p, kappa, cp, delta, g, alpha=ALPHA_MLT):
     U = 3 a c T^3 / (c_P rho^2 kappa l^2) sqrt(8 H_P / (g delta)) and W = nabla_rad - nabla_ad,
     xi solves (xi - U)^3 + (8 U / 9)(xi^2 - U^2 - W) = 0 and nabla = xi^2 - U^2 + nabla_ad.
     MIST uses Henyey et al. 1965's variant, which differs only where the layer is optically thin.
-    The KWW formulae are written from memory and listed in Source checks as not yet checked."""
+    U, W and the cubic match Monash University's M4112 notes (2009); see Source checks."""
     from scipy.optimize import brentq
 
     hp = p / (rho * g)
@@ -298,6 +299,7 @@ class MistZams:
     composition: Composition
     log_l_lsun: float
     log_r_rsun: float
+    log_teff_k: float
     log_t_c_k: float
     log_rho_c_kg_m3: float
 
@@ -321,7 +323,8 @@ def mist_zams(mass_msun: float, feh: float) -> MistZams:
     v = evolution.build_track(mass_msun, feh).values
     k = 202 - 1   # EEP 202, the zero-age main sequence
     return MistZams(Composition(1 - y - z, y, z), float(v["log_l_lsun"][k]),
-                    float(v["log_r_rsun"][k]), float(v["log_center_t_k"][k]),
+                    float(v["log_r_rsun"][k]), float(v["log_teff_k"][k]),
+                    float(v["log_center_t_k"][k]),
                     float(v["log_center_rho_cgs"][k]) + 3)
 
 
@@ -331,6 +334,7 @@ class ZamsModel:
 
     mass_msun: float
     composition: Composition
+    milestone: int
     p_c_pa: float
     t_c_k: float
     rho_c_kg_m3: float
@@ -506,8 +510,28 @@ def solve_zams(mass_msun: float = 1.0, feh: float = 0.0, guess: tuple | None = N
     y = np.hstack([out.sol(m_in), inn.sol(np.log(q_out))])
     m = np.hstack([m_in, star.M * (1 - q_out)])
     return ZamsModel(
-        mass_msun=mass_msun, composition=comp, p_c_pa=p_c, t_c_k=t_c,
+        mass_msun=mass_msun, composition=comp, milestone=milestone, p_c_pa=p_c, t_c_k=t_c,
         rho_c_kg_m3=float(star.density(p_c, t_c)), radius_rsun=radius / R_SUN_M,
         luminosity_lsun=lum / L_SUN_W,
         teff_k=float((lum / (4 * np.pi * radius**2 * SIGMA_SB)) ** 0.25), residual=residual,
         m_kg=m, r_m=np.exp(y[0]), p_pa=np.exp(y[1]), l_w=y[2] * L_SUN_W, t_k=np.exp(y[3]))
+
+
+def profile_quantities(model: ZamsModel) -> dict[str, np.ndarray]:
+    """Density, energy generation, opacity, gradients and the convective flag at every profile
+    point, from the same physics that built the model."""
+    star = _Star(model.mass_msun, model.composition, model.milestone)
+    out: dict[str, list] = {k: [] for k in ("rho_kg_m3", "eps_pp_w_kg", "eps_cno_w_kg",
+                                             "kappa_m2_kg", "nabla", "nabla_ad", "nabla_rad",
+                                             "convective")}
+    for m, r, p, lum, t in zip(model.m_kg, model.r_m, model.p_pa, model.l_w, model.t_k):
+        rho, ad, cp, delta = star.state(p, t)
+        # At the centre L/m is the central energy generation rate (the limit of the series)
+        lum_over_m = lum / m if m > 0 else star.eps(rho, t)
+        rad = star.nabla_rad(rho, t, p, lum_over_m)
+        values = (rho, eps_pp(rho, t, model.composition), eps_cno(rho, t, model.composition),
+                  star.kappa(rho, t), star.nabla(rho, t, p, lum_over_m, ad, cp, delta,
+                                                 G * m / r**2), ad, rad, bool(rad > ad))
+        for k, v in zip(out, values):
+            out[k].append(v)
+    return {k: np.array(v) for k, v in out.items()}

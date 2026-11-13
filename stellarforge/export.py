@@ -210,10 +210,39 @@ def build_polytrope(*, n: float, flags: list[str], xi1, mass_constant: float,
     }
 
 
+PROFILE_ARRAYS = ("r_frac", "m_frac", "l_frac", "t_frac", "rho_frac", "p_frac", "eps_pp_w_kg",
+                  "eps_cno_w_kg", "kappa_m2_kg", "nabla", "nabla_ad", "nabla_rad", "convective")
+PROFILE_SCALARS = ("log_l_lsun", "log_r_rsun", "log_teff_k", "log_t_c_k", "log_rho_c_kg_m3")
+
+
+def build_profile(*, mass_msun: float, feh: float, method: str, flags: list[str], x: float,
+                  y: float, z: float, scalars: dict, p_c_pa: float, energy_core_r_frac: float,
+                  pp_share: float, mist: dict | None, **arrays) -> dict:
+    """One star's zero-age structure from the centre to the surface. `scalars` and `mist` hold
+    PROFILE_SCALARS; mist is MIST's zero-age star, or None where there is none to compare."""
+    if set(arrays) != set(PROFILE_ARRAYS) or len({len(v) for v in arrays.values()}) != 1:
+        raise ValueError(f"a profile needs equally long arrays {PROFILE_ARRAYS}")
+    if set(scalars) != set(PROFILE_SCALARS) or (mist is not None and set(mist) != set(scalars)):
+        raise ValueError(f"profile scalars must be {PROFILE_SCALARS}")
+    return {
+        "mass_msun": float(mass_msun), "feh": float(feh), "provenance": "derived",
+        "method": method, "flags": list(flags), "x": float(f"{x:.6g}"), "y": float(f"{y:.6g}"), "z": float(f"{z:.6g}"),
+        **{k: float(f"{v:.6g}") for k, v in scalars.items()},
+        "p_c_pa": float(f"{p_c_pa:.6g}"), "energy_core_r_frac": float(f"{energy_core_r_frac:.4g}"),
+        "pp_share": float(f"{pp_share:.4g}"),
+        "mist": None if mist is None else {
+            "provenance": "published", **{k: float(f"{v:.6g}") for k, v in mist.items()},
+            **{f"delta_{k}": float(f"{scalars[k] - v:.4g}") for k, v in mist.items()}},
+        **{k: [bool(b) for b in v] if k == "convective" else _round(v, 6)
+           for k, v in arrays.items()},
+    }
+
+
 def build_document(meta: dict, grid: dict | None = None, experiment: dict | None = None,
-                   polytropes: dict | None = None) -> dict:
-    """meta plus the blocks this document carries (a grid, an experiment, polytropes)."""
-    blocks = {"grid": grid, "experiment": experiment, "polytropes": polytropes}
+                   polytropes: dict | None = None, profiles: dict | None = None) -> dict:
+    """meta plus the blocks this document carries (a grid, an experiment, polytropes, profiles)."""
+    blocks = {"grid": grid, "experiment": experiment, "polytropes": polytropes,
+              "profiles": profiles}
     return {"meta": meta, **{k: v for k, v in blocks.items() if v is not None}}
 
 
@@ -323,14 +352,68 @@ def polytrope_document() -> dict:
         "models": [polytrope_record(n) for n in POLYTROPE_NS]})
 
 
+# ---- Phase 4 zero-age main-sequence profiles ---------------------------------------------------
+
+ZAMS_STARS = ((1.0, 0.0),)    # (M☉, [Fe/H]); the gate star. The extension adds more.
+ZAMS_FLAGS = ["kww_formulae_not_yet_source_checked", "pressure_ionisation_blended_log_t_6_to_6.5",
+              "mlt_bohm_vitense_not_henyey", "grey_eddington_photosphere"]
+
+
+def zams_profile(mass_msun: float, feh: float) -> dict:
+    mist = structure.mist_zams(mass_msun, feh)
+    model = structure.solve_zams(mass_msun, feh, composition=mist.composition)
+    q = structure.profile_quantities(model)
+    comp = model.composition
+    lum, m, r = model.l_w, model.m_kg, model.r_m
+    eps_pp_total = np.trapezoid(q["eps_pp_w_kg"], m)
+    scalars = {"log_l_lsun": np.log10(model.luminosity_lsun),
+               "log_r_rsun": np.log10(model.radius_rsun), "log_teff_k": np.log10(model.teff_k),
+               "log_t_c_k": np.log10(model.t_c_k), "log_rho_c_kg_m3": np.log10(model.rho_c_kg_m3)}
+    mist_scalars = {k: getattr(mist, k) for k in PROFILE_SCALARS}
+    return build_profile(
+        mass_msun=mass_msun, feh=feh, flags=ZAMS_FLAGS, x=comp.x, y=comp.y, z=comp.z,
+        method="zero-age model fitted at half the mass (milestone 5), X Y Z from the MIST archive",
+        scalars=scalars, p_c_pa=model.p_c_pa,
+        energy_core_r_frac=r[np.searchsorted(lum / lum[-1], 0.99)] / r[-1],
+        pp_share=eps_pp_total / (eps_pp_total + np.trapezoid(q["eps_cno_w_kg"], m)),
+        mist=mist_scalars,
+        r_frac=r / r[-1], m_frac=m / m[-1], l_frac=lum / lum[-1], t_frac=model.t_k / model.t_c_k,
+        rho_frac=q["rho_kg_m3"] / model.rho_c_kg_m3, p_frac=model.p_pa / model.p_c_pa,
+        **{k: q[k] for k in ("eps_pp_w_kg", "eps_cno_w_kg", "kappa_m2_kg", "nabla", "nabla_ad",
+                             "nabla_rad", "convective")})
+
+
+def zams_document() -> dict:
+    meta = build_meta(
+        dataset="MIST v1.2 zero-age stars for comparison; OPAL and Ferguson et al. 2005 opacity "
+                "tables for the Asplund et al. 2009 mixture, from MESA",
+        models={"structure": "four structure equations fitted at half the mass (stellarforge."
+                             "structure, milestone 5)",
+                "equation_of_state": "ideal gas plus radiation, Saha ionisation of H and He",
+                "convection": "Schwarzschild criterion, mixing length alpha = 1.82",
+                "energy": "analytic pp chain and CNO cycle (Kippenhahn, Weigert & Weiss 2012)",
+                "photosphere": "grey Eddington, T = Teff where P = (2/3) g / kappa"},
+        inputs={"stars": float(len(ZAMS_STARS))},
+        reference_keys=["Choi2016", "Kippenhahn2012", "IglesiasRogers1996", "Asplund2009",
+                        "Prsa2016"],
+        created=git_commit_time(),
+    )
+    return build_document(meta, profiles={"models": [zams_profile(m, f) for m, f in ZAMS_STARS]})
+
+
 def main(argv: list[str]) -> None:
+    if argv == ["zams"]:
+        path = WEB_DATA / "zams.json"
+        write_document(zams_document(), path)
+        print(f"{path.name}: {path.stat().st_size / 1e3:.0f} kB")
+        return
     if argv == ["polytropes"]:
         path = WEB_DATA / "polytropes.json"
         write_document(polytrope_document(), path)
         print(f"{path.name}: {path.stat().st_size / 1e3:.0f} kB")
         return
     if argv != ["web"]:
-        raise SystemExit("Run: .venv/bin/python -m stellarforge.export web|polytropes")
+        raise SystemExit("Run: .venv/bin/python -m stellarforge.export web|polytropes|zams")
     evolution.load_grid()   # once, before forking: the workers share its memory instead of reloading
     with multiprocessing.Pool(4) as pool:  # the machine budget: at most 4 workers
         for line in pool.imap_unordered(_write_web, WEB_FEHS):

@@ -3,8 +3,8 @@
 // change on the Python side fails loudly here instead of drawing nonsense.
 
 import { PROVENANCES, SCHEMA_VERSION, TRACK_ARRAYS } from "./types";
-import { PANEL_KINDS, POLYTROPE_ARRAYS, REMNANT_TYPES } from "./types";
-import type { Cooling, Experiment, Grid, Meta, Panel, PanelKind, PanelRow, Polytrope, Polytropes, Provenance, Reference, Remnant, RemnantType, Rgb, StellarDocument, Track, TrackArray } from "./types";
+import { PANEL_KINDS, POLYTROPE_ARRAYS, PROFILE_ARRAYS, PROFILE_SCALARS, REMNANT_TYPES } from "./types";
+import type { Cooling, Experiment, Grid, Meta, Panel, PanelKind, PanelRow, MistZams, Polytrope, Polytropes, Profile, Provenance, Reference, Remnant, RemnantType, Rgb, StellarDocument, Track, TrackArray } from "./types";
 
 type Json = Record<string, unknown>;
 
@@ -242,16 +242,55 @@ function parsePolytropes(value: unknown): Polytropes {
   return polytropes;
 }
 
+function parseMistZams(value: unknown, path: string): MistZams {
+  const m = object(value, path);
+  const keys = PROFILE_SCALARS.flatMap((k) => [k, `delta_${k}`]);
+  return {
+    provenance: provenance(m.provenance, `${path}.provenance`),
+    ...Object.fromEntries(keys.map((k) => [k, number(m[k], `${path}.${k}`)])),
+  } as MistZams;
+}
+
+function parseProfile(value: unknown, path: string): Profile {
+  const p = object(value, path);
+  const arrays = Object.fromEntries(PROFILE_ARRAYS.map((k) => [k, list(p[k], `${path}.${k}`, number)]));
+  const convective = list(p.convective, `${path}.convective`, boolean);
+  for (const [k, v] of [...Object.entries(arrays), ["convective", convective] as const]) {
+    if (v.length !== arrays.r_frac.length) fail(`${path}.${k}`, `as long as ${path}.r_frac`);
+  }
+  const num = (k: string) => number(p[k], `${path}.${k}`);
+  return {
+    mass_msun: num("mass_msun"),
+    feh: num("feh"),
+    provenance: provenance(p.provenance, `${path}.provenance`),
+    method: string(p.method, `${path}.method`),
+    flags: list(p.flags, `${path}.flags`, string),
+    x: num("x"),
+    y: num("y"),
+    z: num("z"),
+    ...(Object.fromEntries(PROFILE_SCALARS.map((k) => [k, num(k)])) as Record<(typeof PROFILE_SCALARS)[number], number>),
+    p_c_pa: num("p_c_pa"),
+    energy_core_r_frac: num("energy_core_r_frac"),
+    pp_share: num("pp_share"),
+    mist: nullable(p.mist, `${path}.mist`, parseMistZams),
+    ...(arrays as Record<(typeof PROFILE_ARRAYS)[number], number[]>),
+    convective,
+  };
+}
+
 /** A typed document from parsed JSON; throws if any field is missing or of the wrong type. */
 export function parseDocument(raw: unknown): StellarDocument {
   const doc = object(raw, "document");
-  if (doc.grid === undefined && doc.experiment === undefined && doc.polytropes === undefined) {
-    fail("document", "a grid, an experiment or a polytropes block");
+  if ([doc.grid, doc.experiment, doc.polytropes, doc.profiles].every((b) => b === undefined)) {
+    fail("document", "a grid, an experiment, a polytropes or a profiles block");
   }
   return {
     meta: parseMeta(doc.meta),
     ...(doc.grid !== undefined && { grid: parseGrid(doc.grid) }),
     ...(doc.experiment !== undefined && { experiment: parseExperiment(doc.experiment) }),
     ...(doc.polytropes !== undefined && { polytropes: parsePolytropes(doc.polytropes) }),
+    ...(doc.profiles !== undefined && {
+      profiles: { models: list(object(doc.profiles, "profiles").models, "profiles.models", parseProfile) },
+    }),
   };
 }

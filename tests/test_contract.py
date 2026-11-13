@@ -16,11 +16,11 @@ MAPS = {"inputs", "models", "phase_names"}
 # Fields that may be null: remnant values with no remnant or no MIST value, a row without y, no seed.
 NULLABLE = {"mass_msun", "radius_km", "cooling", "final_mass_msun", "he_core_mass_msun",
             "co_core_mass_msun", "y", "seed", "xi1", "density_concentration", "sun_rho_c_kg_m3",
-            "sun_p_c_pa", "sun_t_c_k"}
+            "sun_p_c_pa", "sun_t_c_k", "mist"}
 # Lists whose items may be null: experiment cells without a number, word or provenance.
 NULLABLE_ITEMS = {"values", "labels", "provenance"}
 # Blocks a document may carry beside `meta`; the fixture holds them all.
-BLOCKS = {"grid", "experiment", "polytropes"}
+BLOCKS = {"grid", "experiment", "polytropes", "profiles"}
 
 
 def kind(value):
@@ -141,6 +141,25 @@ def test_polytrope_document_matches_fixture_shape():
     with pytest.raises(ValueError):
         export.build_polytrope(n=1, flags=[], xi1=1, mass_constant=1, density_concentration=1,
                                sun=None, xi=[0, 1])
+
+
+def profile_kwargs(**changes):
+    arrays = {k: [0.0, 1.0] for k in export.PROFILE_ARRAYS} | {"convective": [False, True]}
+    scalars = dict.fromkeys(export.PROFILE_SCALARS, 0.5)
+    return {"mass_msun": 1.0, "feh": 0.0, "method": "test", "flags": ["test"], "x": 0.7,
+            "y": 0.28, "z": 0.02, "scalars": scalars, "p_c_pa": 1e16, "energy_core_r_frac": 0.3,
+            "pp_share": 0.99, "mist": scalars} | arrays | changes
+
+
+def test_profile_document_matches_fixture_shape():
+    meta = export.build_meta(dataset="test", models={"structure": "test"}, inputs={"stars": 1.0},
+                             reference_keys=["Choi2016"])
+    for mist in (dict.fromkeys(export.PROFILE_SCALARS, 0.4), None):
+        profile = export.build_profile(**profile_kwargs(mist=mist))
+        assert_shape(export.build_document(meta, profiles={"models": [profile]}), FIXTURE)
+    assert profile["mist"] is None
+    with pytest.raises(ValueError):
+        export.build_profile(**profile_kwargs(nabla=[1.0]))
 
 
 def test_schema_version_matches():

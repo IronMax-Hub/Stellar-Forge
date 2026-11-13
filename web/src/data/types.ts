@@ -2,7 +2,7 @@
 // Python writes these values; nothing here computes one.
 
 /** Must equal SCHEMA_VERSION in stellarforge/__init__.py and the fixture's meta.schema_version. */
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 export type Provenance = "published" | "interpolated" | "substituted" | "derived" | "predicted";
 export const PROVENANCES: readonly Provenance[] = ["published", "interpolated", "substituted", "derived", "predicted"];
@@ -140,10 +140,37 @@ export interface Polytropes {
   models: Polytrope[];
 }
 
-/** meta plus the blocks a file carries: a grid, an experiment or the polytropes. */
+/** The numeric profile arrays of a zero-age star, centre to surface; `convective` is the flag array. */
+export const PROFILE_ARRAYS = ["r_frac", "m_frac", "l_frac", "t_frac", "rho_frac", "p_frac", "eps_pp_w_kg", "eps_cno_w_kg", "kappa_m2_kg", "nabla", "nabla_ad", "nabla_rad"] as const;
+export type ProfileArray = (typeof PROFILE_ARRAYS)[number];
+export const PROFILE_SCALARS = ["log_l_lsun", "log_r_rsun", "log_teff_k", "log_t_c_k", "log_rho_c_kg_m3"] as const;
+export type ProfileScalar = (typeof PROFILE_SCALARS)[number];
+
+/** MIST's zero-age star, and model minus MIST (`delta_<name>`, dex). */
+export type MistZams = { provenance: Provenance } & Record<ProfileScalar | `delta_${ProfileScalar}`, number>;
+
+/** One star's zero-age structure from the centre to the surface. */
+export interface Profile extends Record<ProfileArray, number[]>, Record<ProfileScalar, number> {
+  mass_msun: number;
+  feh: number;
+  provenance: Provenance;
+  method: string;
+  flags: string[];
+  x: number;
+  y: number;
+  z: number;
+  p_c_pa: number;
+  energy_core_r_frac: number;
+  pp_share: number;
+  mist: MistZams | null;
+  convective: boolean[];
+}
+
+/** meta plus the blocks a file carries: a grid, an experiment, the polytropes or zero-age profiles. */
 export interface StellarDocument {
   meta: Meta;
   grid?: Grid;
   experiment?: Experiment;
   polytropes?: Polytropes;
+  profiles?: { models: Profile[] };
 }

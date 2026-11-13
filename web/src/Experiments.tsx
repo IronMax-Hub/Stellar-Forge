@@ -8,8 +8,8 @@ import { parseDocument } from "./data/loader";
 import type { Experiment, Meta, Panel, PanelRow, Provenance } from "./data/types";
 
 const DATA = `${import.meta.env.BASE_URL}data/experiments/`;
-/** The six Phase 3 experiments, in the order the tabs show them. */
-const NAMES = ["lifetime-map", "full-life-map", "remnant-map", "remnant-mass-curves", "population", "sun-metallicities"];
+/** The six Phase 3 experiments and Phase 4's zero-age extension, in the order the tabs show them. */
+const NAMES = ["lifetime-map", "full-life-map", "remnant-map", "remnant-mass-curves", "population", "sun-metallicities", "zams-extension"];
 
 // Display colours for words that stand in for numbers
 const WORD_COLOURS: Record<string, string> = {
@@ -114,9 +114,11 @@ function axisTicks(lo: number, hi: number, log: boolean): number[] {
     return main.length >= 3 ? main : decades.flatMap((d) => [d, 2 * d, 5 * d]).filter(inside);
   }
   const span = hi - lo || 1;
-  const step = [0.1, 0.2, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100].find((s) => span / s <= 6) ?? 10 ** Math.ceil(Math.log10(span));
+  // A 1-2-2.5-5 step at the range's own scale, so tiny and huge ranges both get 3-6 ticks
+  const scale = 10 ** Math.floor(Math.log10(span / 6));
+  const step = [1, 2, 2.5, 5, 10].map((f) => f * scale).find((s) => span / s <= 6)!;
   const out = [];
-  for (let t = Math.ceil(lo / step - 1e-9) * step; t <= hi + 1e-9; t += step) out.push(+t.toFixed(6));
+  for (let k = Math.ceil(lo / step - 1e-9); k * step <= hi + step * 1e-9; k++) out.push(+(k * step).toPrecision(12));
   return out;
 }
 

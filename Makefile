@@ -4,7 +4,7 @@ BEDARD := $(HOME)/.cache/stellar-forge/bedard2020/AllSequences.tar.gz
 KAP := $(HOME)/.cache/stellar-forge/mesa_kap/kap_data.tar.xz
 UV := $(shell command -v uv || echo $(HOME)/.local/bin/uv)
 
-.PHONY: setup check dev bench data export experiments
+.PHONY: setup check dev bench data export experiments extension
 
 setup:
 	$(UV) sync
@@ -37,13 +37,19 @@ data:
 	echo "32d741f0ac9402faa76f056770ef2010364ec9f703bd745ca66da91f4eb8f145  $(KAP)" | sha256sum -c
 	.venv/bin/python -m stellarforge.opacity convert
 
-# The Star Builder grid in web/public/data/ (about 140 MB), the Phase 4 polytropes and the Phase 1
-# reports.
+# The Star Builder grid in web/public/data/ (about 140 MB), the Phase 4 polytropes and zero-age
+# profile, and the Phase 1 reports.
 export:
 	OMP_NUM_THREADS=1 .venv/bin/python -m stellarforge.export web
 	.venv/bin/python -m stellarforge.export polytropes
+	OMP_NUM_THREADS=1 .venv/bin/python -m stellarforge.export zams
 	.venv/bin/python -m stellarforge.evolution check
 
 # The six Phase 3 experiments into results/ (timestamped), and copies for the Experiments view.
 experiments:
 	OMP_NUM_THREADS=1 .venv/bin/python -m stellarforge.experiments all --export
+
+# Phase 4's 1-20 M☉ extension: 90 zero-age models on 4 workers (~11 minutes), with a copy for the
+# Experiments view. Needs `make data`.
+extension:
+	OMP_NUM_THREADS=1 .venv/bin/python -m stellarforge.experiments zams-extension --export

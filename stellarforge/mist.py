@@ -147,6 +147,26 @@ def read_archive(path: Path):
                 yield parse_eep(tar.extractfile(member).read().decode("ascii"))
 
 
+def eep_columns(path: Path, names: tuple[str, ...], first: int = 202,
+                last: int = 454) -> dict[float, dict[str, np.ndarray]]:
+    """Any MIST columns (not only the kept ones) from EEP `first` to `last`, for every track in an
+    archive, streamed: {initial mass: {column: values}}. Tracks that stop before `first` are left
+    out; tracks that stop before `last` give shorter arrays."""
+    out = {}
+    with tarfile.open(path, "r|xz") as tar:
+        for member in tar:
+            if not (member.isfile() and member.name.endswith(".track.eep")):
+                continue
+            lines = tar.extractfile(member).read().decode("ascii").splitlines()
+            header = [ln for ln in lines if ln.startswith("#")]
+            rows = [ln.split() for ln in lines if ln.strip() and not ln.startswith("#")]
+            columns = _numbers(header[11])
+            if len(rows) >= first:
+                block = np.array(rows[first - 1:last], dtype=float)
+                out[float(_numbers(header[7])[0])] = {n: block[:, columns.index(n)] for n in names}
+    return out
+
+
 def _mass_list(masses: list[float]) -> str:
     return ", ".join(f"{m:g}" for m in masses)
 

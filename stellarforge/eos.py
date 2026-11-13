@@ -1,7 +1,7 @@
 """Equation of state with hydrogen and helium ionisation (Kippenhahn, Weigert & Weiss 2012, ch. 14).
 
 A non-degenerate ideal gas of H, He and metals plus radiation. The ionisation of H (13.598 eV) and
-of He (24.587 and 54.418 eV) follows the Saha equation,
+of He (24.587 and 54.418 eV, NIST) follows the Saha equation,
 
     n_{i+1} n_e / n_i = 2 (g_{i+1} / g_i) (2 pi m_e k T / h^2)^{3/2} exp(-chi_i / k T),
 
@@ -33,7 +33,8 @@ M_H = 1.00784 * M_U
 M_HE = 4.002602 * M_U
 A_METAL = 16.0
 
-CHI_H, CHI_HE1, CHI_HE2 = 13.598434 * EV, 24.587389 * EV, 54.417765 * EV
+# NIST Handbook of Basic Atomic Spectroscopic Data (hydrogen and helium tables)
+CHI_H, CHI_HE1, CHI_HE2 = 13.598433 * EV, 24.587387 * EV, 54.417760 * EV
 # Ground-state statistical weights: H I 2, H II 1; He I 1, He II 2, He III 1; electrons 2.
 G = {"h0": 2, "h1": 1, "he0": 1, "he1": 2, "he2": 1, "e": 2}
 

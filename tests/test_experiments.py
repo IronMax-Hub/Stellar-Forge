@@ -130,3 +130,50 @@ def test_population_takes_the_nearest_swept_mass():
         assert row["values"][0] == pytest.approx(100 * np.mean(kinds[nearest] == row["label"]),
                                                  rel=1e-4, abs=1e-9)
     assert sum(r["values"][0] for r in shares) == pytest.approx(100, rel=1e-4)
+
+
+# ---- Phase 4: the zero-age extension ------------------------------------------------------------
+
+def test_crossing_interpolates_in_log_mass():
+    assert experiments._crossing([1.0, 4.0], [1.0, 0.0], 0.5) == pytest.approx(2.0)
+    assert np.isnan(experiments._crossing([1.0, 2.0], [1.0, 0.9], 0.5))
+    assert experiments._crossing([1.0, 2.0, 4.0], [np.nan, 1.0, 0.0], 0.5) == pytest.approx(8**0.5)
+
+
+SOLAR_ARCHIVE = experiments.mist.CACHE / "MIST_v1.2_feh_p0.00_afe_p0.0_vvcrit0.4_EEPS.txz"
+needs_archive = pytest.mark.skipif(not SOLAR_ARCHIVE.exists(), reason="MIST archive not downloaded")
+
+
+@needs_archive
+def test_eep_columns_reads_the_main_sequence():
+    tracks = experiments.mist.eep_columns(SOLAR_ARCHIVE, ("center_h1", "pp"))
+    sun = tracks[1.0]
+    assert len(sun["center_h1"]) == 454 - 202 + 1
+    assert sun["center_h1"][0] > 0.69 and sun["center_h1"][-1] < 1e-3   # ZAMS to hydrogen exhaustion
+
+
+def fake_zams_cell(args):
+    """A stand-in solve, at module level so the worker processes can unpickle it."""
+    mass, feh = args
+    if mass == 2.0:
+        return {"mass": mass, "feh": feh, "converged": False, "error": "test", "seconds": 0}
+    return {"mass": mass, "feh": feh, "converged": True, "delta_log_l_lsun": 0.01,
+            "delta_log_r_rsun": -0.02, "delta_log_t_c_k": 0.0, "seconds": 0,
+            "pp_share": 0.9 if mass < 1.5 else 0.3, "conv_core_frac": 0.1 * (mass > 1.5)}
+
+
+@needs_archive
+def test_extension_matches_the_contract(monkeypatch):
+    """The experiment's shape, with stand-in solves (a real run takes ~15 minutes: `make
+    extension`): one failure, one star with a convective core."""
+    monkeypatch.setattr(experiments, "_zams_cell", fake_zams_cell)
+    monkeypatch.setattr(experiments, "EXTENSION_MASSES", (1.0, 2.0, 3.0))
+    monkeypatch.setattr(experiments, "EXTENSION_FEHS", (0.0,))
+    document = experiments.result_document("zams-extension", experiments.DEFAULTS)
+    from test_contract import FIXTURE, assert_shape
+    assert_shape(document, FIXTURE)
+    panels = document["experiment"]["panels"]
+    assert panels[0]["rows"][0]["labels"][1] == "did not converge"
+    summary = panels[-1]["rows"][0]["values"]
+    assert summary[0] == 2 and summary[4] == 2              # 2 converged, both within the gate
+    assert "2.0 M☉ at [Fe/H] +0.00" in document["experiment"]["summary"]
