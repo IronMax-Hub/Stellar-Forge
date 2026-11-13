@@ -137,7 +137,7 @@ function StarBuilder() {
 
       <PhaseTimeline track={track} point={i} onPick={setPoint} />
       <Numbers track={track} point={i} />
-      <RemnantCard remnant={track.remnant} />
+      <RemnantCard remnant={track.remnant} input={track.provenance} />
     </main>
   );
 }
@@ -265,7 +265,7 @@ const REMNANT_TITLES: Record<Remnant["type"], string> = {
   none: "No remnant", "not yet": "No remnant yet", "not predicted": "Not predicted",
 };
 
-function RemnantCard({ remnant }: { remnant: Remnant }) {
+function RemnantCard({ remnant, input }: { remnant: Remnant; input: Provenance }) {
   const r = remnant;
   const mass = (m: number | null) => (m === null ? "—" : `${m} M☉`);
   return (
@@ -277,6 +277,7 @@ function RemnantCard({ remnant }: { remnant: Remnant }) {
           <div><dt>{r.type === "black hole" ? "Horizon radius" : r.type === "white dwarf" ? "Radius (cooled)" : "Radius"}</dt><dd>{r.radius_km} km</dd></div>
         )}
         <div><dt>Prescription</dt><dd>{r.prescription}</dd></div>
+        <div><dt>From a track that is</dt><dd><Label p={input} /></dd></div>
         <div><dt>Alternative</dt><dd>{r.alternative.prescription}: {r.alternative.type}, {mass(r.alternative.mass_msun)}</dd></div>
         <div><dt>Final mass · helium core · CO core</dt><dd>{mass(r.final_mass_msun)} · {mass(r.he_core_mass_msun)} · {mass(r.co_core_mass_msun)}</dd></div>
         {r.cooling && <div><dt>Cooling (Bédard et al. 2020)</dt><dd>dashed on the HR diagram, to {(r.cooling.cooling_age_yr[r.cooling.cooling_age_yr.length - 1] / 1e9).toPrecision(3)} Gyr</dd></div>}

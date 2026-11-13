@@ -2,10 +2,10 @@
 // Python writes these values; nothing here computes one.
 
 /** Must equal SCHEMA_VERSION in stellarforge/__init__.py and the fixture's meta.schema_version. */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
-export type Provenance = "published" | "interpolated" | "derived" | "predicted";
-export const PROVENANCES: readonly Provenance[] = ["published", "interpolated", "derived", "predicted"];
+export type Provenance = "published" | "interpolated" | "substituted" | "derived" | "predicted";
+export const PROVENANCES: readonly Provenance[] = ["published", "interpolated", "substituted", "derived", "predicted"];
 
 export type Rgb = [number, number, number];
 

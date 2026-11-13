@@ -12,7 +12,7 @@ import numpy as np
 from . import SCHEMA_VERSION, __version__, evolution, remnants
 from .colour import temperature_to_rgb
 
-PROVENANCE = ("published", "interpolated", "derived", "predicted")
+PROVENANCE = ("published", "interpolated", "substituted", "derived", "predicted")
 TRACK_ARRAYS = ("age_yr", "mass_now_msun", "log_l_lsun", "log_teff_k", "log_r_rsun", "phase",
                 "rgb")
 
@@ -268,6 +268,7 @@ def _write_web(feh: float) -> str:
 def main(argv: list[str]) -> None:
     if argv != ["web"]:
         raise SystemExit("Run: .venv/bin/python -m stellarforge.export web")
+    evolution.load_grid()   # once, before forking: the workers share its memory instead of reloading
     with multiprocessing.Pool(4) as pool:  # the machine budget: at most 4 workers
         for line in pool.imap_unordered(_write_web, WEB_FEHS):
             print(line, flush=True)

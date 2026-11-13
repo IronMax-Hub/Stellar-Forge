@@ -49,8 +49,9 @@ def test_never_blends_tracks_that_end_differently():
     endings = np.full((2, 3), "white-dwarf cooling sequence", dtype=object)
     endings[1, 1] = "post-AGB"
     t = build_track(1.9, -0.1, synthetic_grid(endings.astype(str)))
-    assert t.provenance == "published"
-    assert t.method.startswith("nearest MIST track: 2 M☉, [Fe/H] +0.00")
+    assert t.provenance == "substituted"
+    assert t.method == ("nearest MIST track: 2 M☉, [Fe/H] +0.00; 0.022 dex away in log mass, "
+                        "0.10 in [Fe/H]")
     assert "nearest_track_used" in t.flags
     assert "track_incomplete: stops at post-AGB" in t.flags
 
@@ -132,3 +133,23 @@ def test_massive_stars_have_no_agb():
 def test_interpolated_track_is_monotonic_in_age():
     age = Star(1.234, -0.37, GRID).track().values["age_yr"]
     assert np.all(np.diff(age) > 0)
+
+
+def test_wide_check_is_exact_on_a_linear_grid():
+    # Every column linear in log mass and [Fe/H]: the leave-one-out rebuild must be exact
+    cols = ("age_yr", "mass_msun", "log_l_lsun", "log_teff_k", "log_r_rsun", "he_core_mass_msun",
+            "c_core_mass_msun", "phase")
+    fehs, masses, rows = np.array([-1.0, -0.75, 0.0]), np.array([1.0, 2.0, 8.0]), 460
+    eep = np.arange(1, rows + 1)
+    # Age grows with EEP; the other columns are flat along the track
+    shape = np.column_stack([eep * 1e7, *np.ones((6, rows)), np.zeros(rows)]) * [1, 1, 1, 1, 1,
+                                                                                  0.5, 0.4, 1]
+    data = [np.array([(2 + np.log10(m) + f) * shape for m in masses]) for f in fehs]
+    grid = Grid(fehs=fehs, masses_msun=masses, columns=cols, data=tuple(data),
+                age_yr=tuple(d[:, :, 0] for d in data), star_type=np.full((3, 3), "high-mass"),
+                n_rows=np.full((3, 3), rows), ending=np.full((3, 3), evolution.CARBON_END),
+                version="1.2")
+    errs = evolution.wide_check(grid)
+    stages = {stage for _, stage, _ in errs}
+    assert stages == {"main sequence", "after the main sequence", "end of the track"}
+    assert max(max(e) for e in errs.values()) < 1e-9

@@ -1,6 +1,6 @@
 {
  "meta": {
-  "schema_version": 4,
+  "schema_version": 5,
   "generator": {
    "name": "stellarforge",
    "version": "0.1.0",
@@ -111,7 +111,7 @@
      "type": "white dwarf",
      "mass_msun": 0.54,
      "radius_km": 8800.0,
-     "provenance": "derived",
+     "provenance": "substituted",
      "prescription": "hand-written",
      "how": "Hand-written test remnant.",
      "alternative": {

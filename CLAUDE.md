@@ -21,8 +21,8 @@ A change that breaks one of these is rejected.
    every copy in `PROVENANCE.md`.
 5. **Everything runs on this machine.** At most 4 worker processes, under 4 GiB per job, about 5 GB
    of disk in all. MIST archives are streamed, never unpacked. 3D stays light; every view works in 2D.
-6. **Every result says where it came from:** published, interpolated, derived or predicted, with
-   validity flags. Flags are warnings, never silent fixes.
+6. **Every result says where it came from:** published, interpolated, substituted (the nearest
+   track stands in), derived or predicted, with validity flags. Flags are warnings, never silent fixes.
 7. **Git: ask before every commit and every push.**
 
 ## Working here

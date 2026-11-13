@@ -7,7 +7,8 @@ web loader parses it. Both assert the same `schema_version`. The tests check sha
 Changing the format: edit the fixture, raise `schema_version` by one in the fixture,
 `stellarforge/__init__.py` and `web/src/data/types.ts`, and update both sides until both tests pass.
 
-Schema version 4 (Phase 3: the `experiment` block; version 3 added `remnant`, version 2 moved
+Schema version 5 (the `substituted` provenance; version 4 added the
+`experiment` block; version 3 added `remnant`, version 2 moved
 `track` inside `grid`). The fixture's numbers are hand-written test data, not physics.
 
 A document is `meta` plus one or more blocks: Star Builder files carry `grid`, experiment results
@@ -47,8 +48,8 @@ All arrays have one entry per track point and the same length.
 | --- | --- | --- |
 | `mass_msun` | number | initial mass, M☉ |
 | `feh` | number | [Fe/H], dex |
-| `method` | string | how the track was made: MIST grid track, EEP interpolation, or the nearest MIST track used |
-| `provenance` | `published`, `interpolated`, `derived` or `predicted` | where the track's MIST values came from |
+| `method` | string | how the track was made: MIST grid track, EEP interpolation, or the nearest MIST track used, with its distance in log mass and [Fe/H] |
+| `provenance` | `published`, `interpolated`, `substituted`, `derived` or `predicted` | where the track's MIST values came from; `substituted`: the nearest MIST track stands in, and `method` gives its distance |
 | `ending` | string | the last primary EEP the track reaches, such as `white-dwarf cooling sequence` |
 | `flags` | list of strings | validity warnings, such as `nearest_track_used` |
 | `phase_names` | object of strings | MIST phase number (as a string key) → name for this track; MIST's `high-mass` tracks reuse the numbers with other meanings |
@@ -71,7 +72,7 @@ Fields marked "or null" are null when there is no remnant or MIST gives no value
 | `type` | `white dwarf`, `neutron star`, `black hole`, `none`, `not yet` or `not predicted` | `none`: destroyed by a pair-instability supernova; `not yet`: still on the main sequence where its track ends; `not predicted`: the track stops too early, or lacks a core mass |
 | `mass_msun` | number or null | remnant (gravitational) mass, M☉ |
 | `radius_km` | number or null | white dwarf: radius at the end of its cooling track; neutron star: 12 km; black hole: horizon radius |
-| `provenance` | provenance | `predicted` for core collapse; the track's provenance for a white dwarf's MIST mass; `derived` when there is no remnant |
+| `provenance` | provenance | `predicted` for core collapse; the track's provenance for a white dwarf's MIST mass (the track's own `provenance` says where the final and core masses came from); `derived` when there is no remnant |
 | `prescription` | string | the rule that gave `type` and `mass_msun` |
 | `how` | string | how it formed, in a sentence |
 | `alternative.prescription`, `.type`, `.mass_msun` | string, type, number or null | the other prescription's answer (rapid for delayed; Cummings et al. 2018 for a white dwarf) |
