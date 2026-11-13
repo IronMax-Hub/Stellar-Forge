@@ -9,7 +9,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import SCHEMA_VERSION, __version__, evolution, remnants
+from . import SCHEMA_VERSION, __version__, evolution, remnants, structure
 from .colour import temperature_to_rgb
 
 PROVENANCE = ("published", "interpolated", "substituted", "derived", "predicted")
@@ -191,9 +191,29 @@ def build_grid(*, feh: float, feh_values, mass_values_msun, files: list[str],
     }
 
 
-def build_document(meta: dict, grid: dict | None = None, experiment: dict | None = None) -> dict:
-    """meta plus the blocks this document carries (a grid, an experiment or both)."""
-    blocks = {"grid": grid, "experiment": experiment}
+POLYTROPE_ARRAYS = ("radius_frac", "xi", "theta", "mass_frac", "density_frac", "pressure_frac")
+
+
+def build_polytrope(*, n: float, flags: list[str], xi1, mass_constant: float,
+                    density_concentration, sun: dict | None, **arrays) -> dict:
+    """One Lane-Emden polytrope; xi1, the concentration and the Sun scaling are null for n = 5."""
+    if set(arrays) != set(POLYTROPE_ARRAYS) or len({len(v) for v in arrays.values()}) != 1:
+        raise ValueError(f"a polytrope needs equally long arrays {POLYTROPE_ARRAYS}")
+    finite = (lambda x: None if x is None or not np.isfinite(x) else float(f"{x:.6g}"))
+    sun = sun or {}
+    return {
+        "n": float(n), "provenance": "derived", "flags": list(flags),
+        "xi1": finite(xi1), "mass_constant": finite(mass_constant),
+        "density_concentration": finite(density_concentration),
+        **{k: finite(sun.get(k)) for k in ("sun_rho_c_kg_m3", "sun_p_c_pa", "sun_t_c_k")},
+        **{k: _round(arrays[k], 6) for k in POLYTROPE_ARRAYS},
+    }
+
+
+def build_document(meta: dict, grid: dict | None = None, experiment: dict | None = None,
+                   polytropes: dict | None = None) -> dict:
+    """meta plus the blocks this document carries (a grid, an experiment, polytropes)."""
+    blocks = {"grid": grid, "experiment": experiment, "polytropes": polytropes}
     return {"meta": meta, **{k: v for k, v in blocks.items() if v is not None}}
 
 
@@ -265,9 +285,52 @@ def _write_web(feh: float) -> str:
     return f"{path.name}: {path.stat().st_size / 1e6:.1f} MB"
 
 
+# ---- Phase 4 polytropes ---------------------------------------------------------------------
+
+POLYTROPE_NS = np.arange(0, 5.0 + 1e-9, 0.5)
+SUN_X, SUN_Y, SUN_Z = 0.70, 0.28, 0.02   # the build plan's Eddington check: mu = 0.617
+
+
+def polytrope_record(n: float) -> dict:
+    poly = structure.lane_emden(n, points=200)
+    surface = np.isfinite(poly.xi1)
+    mu = structure.mean_molecular_weight(SUN_X, SUN_Y, SUN_Z)
+    sun = structure.polytrope_star(poly, 1.0, 1.0, mu) if surface else None
+    return build_polytrope(
+        n=n, flags=[] if surface else ["no_surface_profile_cut_at_xi_50"],
+        xi1=poly.xi1, mass_constant=poly.mass_constant,
+        density_concentration=poly.concentration,
+        sun=sun and {"sun_rho_c_kg_m3": sun.rho_c_kg_m3, "sun_p_c_pa": sun.p_c_pa,
+                     "sun_t_c_k": sun.t_c_k},
+        radius_frac=poly.xi / poly.xi[-1], xi=poly.xi, theta=poly.theta,
+        # m(xi)/M = xi^2 |theta'| / (xi_1^2 |theta'(xi_1)|); for n = 5 the limit sqrt(3)
+        mass_frac=np.minimum(-poly.xi**2 * poly.dtheta / poly.mass_constant, 1.0),
+        density_frac=poly.theta**n, pressure_frac=poly.theta ** (n + 1),
+    )
+
+
+def polytrope_document() -> dict:
+    meta = build_meta(
+        dataset="none: solutions of the Lane-Emden equation",
+        models={"structure": "Lane-Emden polytropes, SciPy DOP853 (stellarforge.structure)",
+                "sun_scaling": "1 M☉, 1 R☉, ideal gas, mu = 0.617 (X 0.70, Y 0.28, Z 0.02)"},
+        inputs={"n_min": 0.0, "n_max": 5.0, "n_step": 0.5},
+        reference_keys=["Chandrasekhar1939", "Kippenhahn2012", "Prsa2016"],
+        created=git_commit_time(),
+    )
+    return build_document(meta, polytropes={
+        "n_values": [float(n) for n in POLYTROPE_NS],
+        "models": [polytrope_record(n) for n in POLYTROPE_NS]})
+
+
 def main(argv: list[str]) -> None:
+    if argv == ["polytropes"]:
+        path = WEB_DATA / "polytropes.json"
+        write_document(polytrope_document(), path)
+        print(f"{path.name}: {path.stat().st_size / 1e3:.0f} kB")
+        return
     if argv != ["web"]:
-        raise SystemExit("Run: .venv/bin/python -m stellarforge.export web")
+        raise SystemExit("Run: .venv/bin/python -m stellarforge.export web|polytropes")
     evolution.load_grid()   # once, before forking: the workers share its memory instead of reloading
     with multiprocessing.Pool(4) as pool:  # the machine budget: at most 4 workers
         for line in pool.imap_unordered(_write_web, WEB_FEHS):

@@ -1,6 +1,6 @@
 {
  "meta": {
-  "schema_version": 5,
+  "schema_version": 6,
   "generator": {
    "name": "stellarforge",
    "version": "0.1.0",
@@ -211,6 +211,92 @@
        "published"
       ]
      }
+    ]
+   }
+  ]
+ },
+ "polytropes": {
+  "n_values": [
+   1.0,
+   5.0
+  ],
+  "models": [
+   {
+    "n": 1.0,
+    "provenance": "derived",
+    "flags": [],
+    "xi1": 3.14159,
+    "mass_constant": 3.14159,
+    "density_concentration": 3.28987,
+    "sun_rho_c_kg_m3": 4640.0,
+    "sun_p_c_pa": 1000000000000000.0,
+    "sun_t_c_k": 7000000.0,
+    "radius_frac": [
+     0.0,
+     0.5,
+     1.0
+    ],
+    "xi": [
+     0.0,
+     1.5708,
+     3.14159
+    ],
+    "theta": [
+     1.0,
+     0.63662,
+     0.0
+    ],
+    "mass_frac": [
+     0.0,
+     0.31831,
+     1.0
+    ],
+    "density_frac": [
+     1.0,
+     0.63662,
+     0.0
+    ],
+    "pressure_frac": [
+     1.0,
+     0.405285,
+     0.0
+    ]
+   },
+   {
+    "n": 5.0,
+    "provenance": "derived",
+    "flags": [
+     "no_surface_profile_cut_at_xi_50"
+    ],
+    "xi1": null,
+    "mass_constant": 1.73205,
+    "density_concentration": null,
+    "sun_rho_c_kg_m3": null,
+    "sun_p_c_pa": null,
+    "sun_t_c_k": null,
+    "radius_frac": [
+     0.0,
+     1.0
+    ],
+    "xi": [
+     0.0,
+     50.0
+    ],
+    "theta": [
+     1.0,
+     0.0346
+    ],
+    "mass_frac": [
+     0.0,
+     0.9982
+    ],
+    "density_frac": [
+     1.0,
+     5e-08
+    ],
+    "pressure_frac": [
+     1.0,
+     1.7e-09
     ]
    }
   ]

@@ -18,7 +18,7 @@ const WORD_COLOURS: Record<string, string> = {
   "still on the main sequence": "#6fae5c",
 };
 // Distinct hues, so neighbouring curves are told apart; curve k always takes colour k
-const CURVE_COLOURS = ["#5b8def", "#f28e2b", "#59c27a", "#e15759", "#b07aa1", "#edc948", "#76b7b2", "#ff9da7", "#9c755f", "#bab0ac"];
+const CURVE_COLOURS = ["#5b8def", "#f28e2b", "#59c27a", "#e15759", "#b07aa1", "#edc948", "#76b7b2", "#ff9da7", "#9c755f", "#bab0ac", "#a0cbe8"];
 // Viridis, as five stops; colours between them are blended linearly
 const SCALE = [[68, 1, 84], [59, 82, 139], [33, 145, 140], [94, 201, 98], [253, 231, 37]];
 
@@ -200,7 +200,7 @@ function Heatmap({ panel }: { panel: Panel }) {
   );
 }
 
-function Curves({ panel }: { panel: Panel }) {
+export function Curves({ panel }: { panel: Panel }) {
   const W = 800, H = 320, PAD = 50;
   const [hover, setHover] = useState<number | null>(null);
   const xs = panel.x_values;

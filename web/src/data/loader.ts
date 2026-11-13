@@ -3,8 +3,8 @@
 // change on the Python side fails loudly here instead of drawing nonsense.
 
 import { PROVENANCES, SCHEMA_VERSION, TRACK_ARRAYS } from "./types";
-import { PANEL_KINDS, REMNANT_TYPES } from "./types";
-import type { Cooling, Experiment, Grid, Meta, Panel, PanelKind, PanelRow, Provenance, Reference, Remnant, RemnantType, Rgb, StellarDocument, Track, TrackArray } from "./types";
+import { PANEL_KINDS, POLYTROPE_ARRAYS, REMNANT_TYPES } from "./types";
+import type { Cooling, Experiment, Grid, Meta, Panel, PanelKind, PanelRow, Polytrope, Polytropes, Provenance, Reference, Remnant, RemnantType, Rgb, StellarDocument, Track, TrackArray } from "./types";
 
 type Json = Record<string, unknown>;
 
@@ -211,13 +211,47 @@ function parseExperiment(value: unknown): Experiment {
   };
 }
 
+function parsePolytrope(value: unknown, path: string): Polytrope {
+  const m = object(value, path);
+  const arrays = Object.fromEntries(POLYTROPE_ARRAYS.map((k) => [k, list(m[k], `${path}.${k}`, number)]));
+  for (const k of POLYTROPE_ARRAYS) {
+    if (arrays[k].length !== arrays.radius_frac.length) fail(`${path}.${k}`, `as long as ${path}.radius_frac`);
+  }
+  const maybe = (k: string) => nullable(m[k], `${path}.${k}`, number);
+  return {
+    n: number(m.n, `${path}.n`),
+    provenance: provenance(m.provenance, `${path}.provenance`),
+    flags: list(m.flags, `${path}.flags`, string),
+    xi1: maybe("xi1"),
+    mass_constant: number(m.mass_constant, `${path}.mass_constant`),
+    density_concentration: maybe("density_concentration"),
+    sun_rho_c_kg_m3: maybe("sun_rho_c_kg_m3"),
+    sun_p_c_pa: maybe("sun_p_c_pa"),
+    sun_t_c_k: maybe("sun_t_c_k"),
+    ...(arrays as Record<(typeof POLYTROPE_ARRAYS)[number], number[]>),
+  };
+}
+
+function parsePolytropes(value: unknown): Polytropes {
+  const p = object(value, "polytropes");
+  const polytropes: Polytropes = {
+    n_values: list(p.n_values, "polytropes.n_values", number),
+    models: list(p.models, "polytropes.models", parsePolytrope),
+  };
+  if (polytropes.models.length !== polytropes.n_values.length) fail("polytropes.models", "one model per polytropes.n_values entry");
+  return polytropes;
+}
+
 /** A typed document from parsed JSON; throws if any field is missing or of the wrong type. */
 export function parseDocument(raw: unknown): StellarDocument {
   const doc = object(raw, "document");
-  if (doc.grid === undefined && doc.experiment === undefined) fail("document", "a grid or an experiment block");
+  if (doc.grid === undefined && doc.experiment === undefined && doc.polytropes === undefined) {
+    fail("document", "a grid, an experiment or a polytropes block");
+  }
   return {
     meta: parseMeta(doc.meta),
     ...(doc.grid !== undefined && { grid: parseGrid(doc.grid) }),
     ...(doc.experiment !== undefined && { experiment: parseExperiment(doc.experiment) }),
+    ...(doc.polytropes !== undefined && { polytropes: parsePolytropes(doc.polytropes) }),
   };
 }

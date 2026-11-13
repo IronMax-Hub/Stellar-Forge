@@ -7,12 +7,12 @@ web loader parses it. Both assert the same `schema_version`. The tests check sha
 Changing the format: edit the fixture, raise `schema_version` by one in the fixture,
 `stellarforge/__init__.py` and `web/src/data/types.ts`, and update both sides until both tests pass.
 
-Schema version 5 (the `substituted` provenance; version 4 added the
+Schema version 6 (the `polytropes` block; version 5 added the `substituted` provenance, version 4 the
 `experiment` block; version 3 added `remnant`, version 2 moved
 `track` inside `grid`). The fixture's numbers are hand-written test data, not physics.
 
 A document is `meta` plus one or more blocks: Star Builder files carry `grid`, experiment results
-carry `experiment`. The fixture holds every block.
+carry `experiment`, and `polytropes.json` carries `polytropes`. The fixture holds every block.
 
 ## `meta` — carried by every export
 
@@ -111,3 +111,25 @@ curve over `x_values`) or a table (one cell per `columns` entry).
 | `rows[].values` | numbers or nulls | one per cell; null where the cell has no number |
 | `rows[].labels` | strings or nulls | one per cell: a word shown instead of the number, such as `track incomplete` or a remnant type |
 | `rows[].provenance` | provenances or nulls | one per cell: where its value came from |
+
+## `polytropes` — Lane–Emden polytropes (`stellarforge/structure.py`)
+
+Written by `python -m stellarforge.export polytropes` as `web/public/data/polytropes.json`. The
+view's n slider snaps to `n_values`. Every model has the same number of points, evenly spaced in
+radius. Fields without a unit are dimensionless.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `n_values` | numbers | every exported polytropic index, one model each, same order |
+| `models[].n` | number | the polytropic index |
+| `models[].provenance` | provenance | always `derived`: solved by Stellar-Forge |
+| `models[].flags` | strings | `no_surface_profile_cut_at_xi_50` for n = 5, which has no surface: its radii are ξ / 50 |
+| `models[].xi1` | number or null | the first zero of θ, the surface; null for n = 5 |
+| `models[].mass_constant` | number | −ξ₁² θ′(ξ₁); √3 for n = 5 |
+| `models[].density_concentration` | number or null | central over mean density, ρc/ρ̄; null for n = 5 |
+| `models[].sun_rho_c_kg_m3`, `.sun_p_c_pa`, `.sun_t_c_k` | numbers or null | the polytrope scaled to 1 M☉ and 1 R☉, ideal gas with μ = 0.617 (see `meta.models`): central density, pressure and temperature; null for n = 5 |
+| `models[].radius_frac` | numbers | r/R, from 0 to 1 |
+| `models[].xi` | numbers | the Lane–Emden radius ξ |
+| `models[].theta` | numbers | θ(ξ); also T/Tc for an ideal gas of uniform composition |
+| `models[].mass_frac` | numbers | m(r)/M |
+| `models[].density_frac`, `.pressure_frac` | numbers | ρ/ρc and P/Pc |

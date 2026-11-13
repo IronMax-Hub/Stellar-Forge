@@ -482,7 +482,7 @@ Applied to the Sun, the n = 3 polytrope (Eddington's standard model) gives a cen
 
 **Done when:** the gate passes — milestones 1–5 and their numerical and scientific checks at 1 M☉ — and the extension's results are reported, whatever mass range it reaches. Phase 4 is complete without the full 1–20 M☉ range.
 
-**Part A built 14 November 2026:** `stellarforge/structure.py` solves the Lane–Emden equation for any n from 0 to 5 (SciPy DOP853, from the series solution at ξ = 10⁻⁶ to the first zero of θ; n = 5 has no surface and stops at ξ = 50) and scales a polytrope to a star's mass and radius. Milestones 1 and 2 and the Eddington check pass. Not yet built: the `profile` export and the polytrope explorer in **Inside the Star**.
+**Part A built 14 November 2026:** `stellarforge/structure.py` solves the Lane–Emden equation for any n from 0 to 5 (SciPy DOP853, from the series solution at ξ = 10⁻⁶ to the first zero of θ; n = 5 has no surface and stops at ξ = 50) and scales a polytrope to a star's mass and radius. Milestones 1 and 2 and the Eddington check pass. `python -m stellarforge.export polytropes` (part of `make export`) writes n = 0 to 5 in steps of 0.5 to `polytropes.json` (125 kB) as the contract's `polytropes` block (schema version 6), and the **Inside the Star** tab shows the polytrope explorer: an n slider over the exported values, each model's constants and its scaling to the Sun, its profiles, and every model's density. Part B's `profile` block and the cross-section come with the solver.
 
 **Effort:** 6–9 days for the gate and as much of the extension as fits; the hardest numerics in the plan, and likely to need iteration.
 

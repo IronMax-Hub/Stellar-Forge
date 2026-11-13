@@ -15,11 +15,12 @@ FIXTURE = json.loads((Path(__file__).parent.parent / "contract" / "fixture.json"
 MAPS = {"inputs", "models", "phase_names"}
 # Fields that may be null: remnant values with no remnant or no MIST value, a row without y, no seed.
 NULLABLE = {"mass_msun", "radius_km", "cooling", "final_mass_msun", "he_core_mass_msun",
-            "co_core_mass_msun", "y", "seed"}
+            "co_core_mass_msun", "y", "seed", "xi1", "density_concentration", "sun_rho_c_kg_m3",
+            "sun_p_c_pa", "sun_t_c_k"}
 # Lists whose items may be null: experiment cells without a number, word or provenance.
 NULLABLE_ITEMS = {"values", "labels", "provenance"}
 # Blocks a document may carry beside `meta`; the fixture holds them all.
-BLOCKS = {"grid", "experiment"}
+BLOCKS = {"grid", "experiment", "polytropes"}
 
 
 def kind(value):
@@ -125,6 +126,21 @@ def test_real_experiments_match_fixture_shape():
     params = {**experiments.DEFAULTS, "feh": "-1:0:0.5", "masses": 12, "stars": 1000}
     for name in experiments.EXPERIMENTS:
         assert_shape(experiments.result_document(name, params), FIXTURE)
+
+
+def test_polytrope_document_matches_fixture_shape():
+    document = export.polytrope_document()
+    assert_shape(document, FIXTURE)
+    models = document["polytropes"]["models"]
+    assert [m["n"] for m in models] == document["polytropes"]["n_values"]
+    for m in models:
+        assert m["radius_frac"][0] == 0 and m["radius_frac"][-1] == 1
+        assert m["mass_frac"][0] == 0 and m["density_frac"][0] == m["pressure_frac"][0] == 1
+        assert (m["mass_frac"][-1] == 1) == (m["n"] < 5), m["n"]
+    assert models[6]["n"] == 3 and round(models[6]["sun_t_c_k"], -5) == 1.21e7
+    with pytest.raises(ValueError):
+        export.build_polytrope(n=1, flags=[], xi1=1, mass_constant=1, density_concentration=1,
+                               sun=None, xi=[0, 1])
 
 
 def test_schema_version_matches():

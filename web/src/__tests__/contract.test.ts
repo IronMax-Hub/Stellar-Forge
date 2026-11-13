@@ -62,6 +62,15 @@ describe("data contract", () => {
     const empty = fixture();
     delete empty.grid;
     delete empty.experiment;
-    expect(() => parseDocument(empty)).toThrow(/grid or an experiment/);
+    delete empty.polytropes;
+    expect(() => parseDocument(empty)).toThrow(/grid, an experiment or a polytropes/);
+  });
+
+  it("reads polytropes, allows n = 5's nulls, and rejects uneven profiles", () => {
+    const doc = parseDocument(fixture());
+    expect(doc.polytropes!.models[1].xi1).toBeNull();
+    const uneven = fixture();
+    ((uneven.polytropes.models as Record<string, number[]>[])[0].mass_frac).pop();
+    expect(() => parseDocument(uneven)).toThrow(/models\[0\]\.mass_frac/);
   });
 });
