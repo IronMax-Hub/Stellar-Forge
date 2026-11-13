@@ -76,6 +76,7 @@ def _row(args) -> list[dict]:
 @lru_cache(maxsize=4)
 def sweep(masses: tuple[float, ...], fehs: tuple[float, ...]) -> tuple[list[dict], ...]:
     """Records for every mass at every [Fe/H], one list per [Fe/H], on at most 4 processes."""
+    evolution.load_grid()   # once, before forking: the workers share its memory instead of reloading
     with Pool(min(4, len(fehs))) as pool:
         return tuple(pool.map(_row, [(f, masses) for f in fehs]))
 

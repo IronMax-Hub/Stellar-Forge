@@ -43,3 +43,53 @@ Worst ten along feh, up to 13.8 Gyr:
 | 70 | +0.25 | 0.1589 | 0.1086 |
 | 85 | -0.25 | 0.1478 | 0.0939 |
 | 105 | +0.25 | 0.1443 | 0.0548 |
+
+## Every stage and more quantities
+
+The same rebuilds, compared over the main sequence (EEP 202–454) and after it (EEP 454 to the last EEP all three tracks reach), in dex; `log age` is the age at which each EEP, and so each phase, is reached. At the end of tracks that end finally (white dwarf or end of carbon burning), the final mass and core masses that the remnant rules use are compared as a fraction; trios where MIST gives no core mass are left out.
+
+| Axis | Stage | Quantity | Tracks | Median | 95th percentile | Worst |
+| --- | --- | --- | --- | --- | --- | --- |
+| mass | main sequence | log L | 2173 | 0.0042 | 0.0457 | 0.8766 |
+| mass | main sequence | log Teff | 2173 | 0.0010 | 0.0292 | 0.4915 |
+| mass | main sequence | log R | 2173 | 0.0024 | 0.0518 | 0.9795 |
+| mass | main sequence | log age | 2173 | 0.0067 | 0.0563 | 0.1967 |
+| mass | after the main sequence | log L | 1936 | 0.1920 | 0.8597 | 3.4380 |
+| mass | after the main sequence | log Teff | 1936 | 0.0438 | 0.4291 | 1.8667 |
+| mass | after the main sequence | log R | 1936 | 0.1839 | 0.9111 | 4.3038 |
+| mass | after the main sequence | log age | 1936 | 0.0041 | 0.0176 | 0.0485 |
+| mass | end of the track | final mass | 1661 | 0.2% | 5.7% | 68.2% |
+| mass | end of the track | final helium core | 1661 | 0.2% | 5.0% | 68.2% |
+| mass | end of the track | final CO core | 1661 | 1.1% | 12.3% | 74.2% |
+| feh | main sequence | log L | 1808 | 0.0125 | 0.0921 | 0.8533 |
+| feh | main sequence | log Teff | 1808 | 0.0039 | 0.0383 | 0.2278 |
+| feh | main sequence | log R | 1808 | 0.0066 | 0.0694 | 0.4717 |
+| feh | main sequence | log age | 1808 | 0.0149 | 0.0745 | 0.4984 |
+| feh | after the main sequence | log L | 1576 | 0.2595 | 0.9173 | 3.4138 |
+| feh | after the main sequence | log Teff | 1576 | 0.0594 | 0.3969 | 1.6967 |
+| feh | after the main sequence | log R | 1576 | 0.2497 | 0.8686 | 4.3673 |
+| feh | after the main sequence | log age | 1576 | 0.0089 | 0.0244 | 0.0511 |
+| feh | end of the track | final mass | 1443 | 0.4% | 5.8% | 58.0% |
+| feh | end of the track | final helium core | 1443 | 0.4% | 4.7% | 58.0% |
+| feh | end of the track | final CO core | 1443 | 1.4% | 12.6% | 64.2% |
+
+## Storage precision
+
+`mist.py` stores every column but age as float32. Largest difference between the stored grid and the float64 values streamed from `MIST_v1.2_feh_p0.00_afe_p0.0_vvcrit0.4_EEPS.txz`:
+
+| Column | Largest absolute difference | Largest relative difference |
+| --- | --- | --- |
+| `age_yr` | 0 | 0 |
+| `mass_msun` | 1.5e-05 | 6e-08 |
+| `log_l_lsun` | 2.4e-07 | 5.9e-08 |
+| `log_teff_k` | 2.4e-07 | 6e-08 |
+| `log_r_rsun` | 1.2e-07 | 6e-08 |
+| `log_g_cgs` | 4.7e-07 | 6e-08 |
+| `he_core_mass_msun` | 1.9e-06 | 5.9e-08 |
+| `c_core_mass_msun` | 9.5e-07 | 5.9e-08 |
+| `o_core_mass_msun` | 0 | 0 |
+| `center_h1` | 3e-08 | 5.9e-08 |
+| `center_he4` | 3e-08 | 5.9e-08 |
+| `log_center_t_k` | 4.8e-07 | 6e-08 |
+| `log_center_rho_cgs` | 2.4e-07 | 5.9e-08 |
+| `phase` | 0 | 0 |

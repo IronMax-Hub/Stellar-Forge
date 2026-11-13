@@ -30,7 +30,7 @@ data:
 	curl --fail -sSL -z $(BEDARD) -o $(BEDARD) \
 	  https://www.astro.umontreal.ca/~bergeron/CoolingModels/CoolingModels/AllSequences.tar.gz
 
-# The Star Builder grid in web/public/data/ (about 120 MB), plus the Phase 1 reports.
+# The Star Builder grid in web/public/data/ (about 140 MB), plus the Phase 1 reports.
 export:
 	OMP_NUM_THREADS=1 .venv/bin/python -m stellarforge.export web
 	.venv/bin/python -m stellarforge.evolution check

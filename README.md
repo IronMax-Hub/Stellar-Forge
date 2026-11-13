@@ -2,7 +2,7 @@
 
 Stars and their planets from published physics. Python computes every result from published stellar
 models and datasets; a small web app only displays what Python exported, and labels every value with
-where it came from (published, interpolated, derived or predicted).
+where it came from (published, interpolated, substituted, derived or predicted).
 
 It runs on one ordinary desktop: no cloud compute, no full stellar-evolution code.
 

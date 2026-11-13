@@ -41,9 +41,12 @@ function cellText(row: PanelRow, k: number, unit: string): string {
 export default function Experiments() {
   const [name, setName] = useState(NAMES[0]);
   const [docs, setDocs] = useState<Record<string, { meta: Meta; experiment: Experiment } | string>>({});
+  // Names already fetched or in flight, so a re-run of the effect never fetches a file twice
+  const asked = useRef(new Set<string>());
 
   useEffect(() => {
-    if (docs[name]) return;
+    if (asked.current.has(name)) return;
+    asked.current.add(name);
     fetch(DATA + name + ".json")
       .then((r) => {
         if (!r.ok) throw new Error(`${name}: HTTP ${r.status}; run \`make experiments\``);
@@ -55,7 +58,7 @@ export default function Experiments() {
         setDocs((d) => ({ ...d, [name]: { meta, experiment } }));
       })
       .catch((e: Error) => setDocs((d) => ({ ...d, [name]: e.message })));
-  }, [name, docs]);
+  }, [name]);
 
   const doc = docs[name];
   return (

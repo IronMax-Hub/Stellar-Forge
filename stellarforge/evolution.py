@@ -2,7 +2,7 @@
 
 Tracks are blended at equal EEP (equivalent evolutionary phase), bilinearly in log mass and [Fe/H],
 only when all four corner tracks of the grid cell end at the same primary EEP. Otherwise the
-nearest corner track is used, with a flag. Nothing outside the grid is extrapolated.
+nearest corner track is used, labelled substituted, with a flag. Nothing outside the grid is extrapolated.
 
 Run: .venv/bin/python -m stellarforge.evolution check
      (leave-one-out interpolation errors; writes documentation/data/MIST interpolation check.md)
@@ -15,7 +15,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .mist import GRIDS, PRIMARY_EEPS, phase_names
+from .mist import CACHE, GRIDS, PRIMARY_EEPS, phase_names, read_archive
 
 REPORT = Path(__file__).parent.parent / "documentation" / "data" / "MIST interpolation check.md"
 
@@ -100,7 +100,7 @@ class Track:
     mass_msun: float
     feh: float
     method: str
-    provenance: str          # published (a MIST track) or interpolated
+    provenance: str          # published (a MIST track), interpolated, or substituted (nearest track)
     ending: str
     star_type: str           # MIST's label for the track whose phases are used
     flags: list[str]
@@ -140,11 +140,14 @@ def build_track(mass_msun: float, feh: float, grid: Grid | None = None) -> Track
     if len(corners) == 1 or len(endings) > 1:
         rows = grid.rows(near_f, near_m)
         exact = len(corners) == 1
+        d_logm = abs(np.log10(mass_msun / grid.masses_msun[near_m]))
         method = ("MIST grid track" if exact else
                   f"nearest MIST track: {grid.masses_msun[near_m]:g} M☉, "
-                  f"[Fe/H] {grid.fehs[near_f]:+.2f}")
+                  f"[Fe/H] {grid.fehs[near_f]:+.2f}; {d_logm:.3f} dex away in log mass, "
+                  f"{abs(feh - grid.fehs[near_f]):.2f} in [Fe/H]")
         flags = [] if exact else ["nearest_track_used", "cell_tracks_end_differently"]
-        return Track(mass_msun, feh, method, "published", ending, star_type,
+        return Track(mass_msun, feh, method, "published" if exact else "substituted", ending,
+                     star_type,
                      flags + _ending_flags(ending), dict(zip(grid.columns, rows.T)))
 
     n = min(grid.n_rows[f, m] for f, m, _ in corners)
@@ -186,37 +189,98 @@ class Star:
                 for s, e in zip(starts, ends)]
 
 
+def _trios(grid: Grid, min_rows: int):
+    """(axis, i_feh, i_mass, weight, trio) for each interior track and its two neighbours along
+    mass (in log mass) or [Fe/H], when all three end alike and reach `min_rows` EEPs."""
+    logm = np.log10(grid.masses_msun)
+    for axis, positions in (("mass", logm), ("feh", grid.fehs)):
+        for f in range(len(grid.fehs)):
+            for m in range(len(logm)):
+                i = m if axis == "mass" else f
+                if not 0 < i < len(positions) - 1:
+                    continue
+                trio = [(f, j) if axis == "mass" else (j, m) for j in (i - 1, i, i + 1)]
+                if len({str(grid.ending[c]) for c in trio}) > 1 or min(
+                        grid.n_rows[c] for c in trio) < min_rows:
+                    continue
+                w = (positions[i] - positions[i - 1]) / (positions[i + 1] - positions[i - 1])
+                yield axis, f, m, w, trio
+
+
 def leave_one_out(grid: Grid) -> dict[str, list[tuple[float, float, float, float]]]:
     """Main-sequence errors (EEP 202-454) when each interior grid track is rebuilt from its two
     neighbours, along mass and along [Fe/H]. Only neighbours that end like the track are used.
     Returns axis -> [(mass, feh, max |d log L|, max |d log Teff|, the same two up to 13.8 Gyr)]."""
     ms = slice(201, 454)
     li, ti, ai = (grid.columns.index(c) for c in ("log_l_lsun", "log_teff_k", "age_yr"))
-    logm = np.log10(grid.masses_msun)
     out: dict[str, list] = {"mass": [], "feh": []}
-    for axis, positions, count in (("mass", logm, len(logm)), ("feh", grid.fehs, len(grid.fehs))):
-        for f in range(len(grid.fehs)):
-            for m in range(len(logm)):
-                i = m if axis == "mass" else f
-                if not 0 < i < count - 1:
-                    continue
-                trio = [(f, j) if axis == "mass" else (j, m) for j in (i - 1, i, i + 1)]
-                if len({str(grid.ending[c]) for c in trio}) > 1 or min(
-                        grid.n_rows[c] for c in trio) < 454:
-                    continue
-                w = (positions[i] - positions[i - 1]) / (positions[i + 1] - positions[i - 1])
-                guess = (1 - w) * grid.rows(*trio[0])[ms] + w * grid.rows(*trio[2])[ms]
-                truth = grid.rows(*trio[1])[ms]
-                err = np.abs(guess - truth)
-                young = err[truth[:, ai] <= UNIVERSE_AGE_YR]
-                young = young if len(young) else np.zeros_like(err[:1])
-                out[axis].append((float(grid.masses_msun[m]), float(grid.fehs[f]),
-                                  float(err[:, li].max()), float(err[:, ti].max()),
-                                  float(young[:, li].max()), float(young[:, ti].max())))
+    for axis, f, m, w, trio in _trios(grid, 454):
+        guess = (1 - w) * grid.rows(*trio[0])[ms] + w * grid.rows(*trio[2])[ms]
+        truth = grid.rows(*trio[1])[ms]
+        err = np.abs(guess - truth)
+        young = err[truth[:, ai] <= UNIVERSE_AGE_YR]
+        young = young if len(young) else np.zeros_like(err[:1])
+        out[axis].append((float(grid.masses_msun[m]), float(grid.fehs[f]),
+                          float(err[:, li].max()), float(err[:, ti].max()),
+                          float(young[:, li].max()), float(young[:, ti].max())))
     return out
 
 
-def loo_report(grid: Grid) -> str:
+# Compared at every EEP of a stage, in dex; the age is the age each EEP (phase point) is reached.
+WIDE_QUANTITIES = (("log L", "log_l_lsun"), ("log Teff", "log_teff_k"), ("log R", "log_r_rsun"),
+                   ("log age", "age_yr"))
+# Compared at the last EEP of tracks that end finally (the remnant's inputs), as a fraction.
+FINAL_QUANTITIES = (("final mass", "mass_msun"), ("final helium core", "he_core_mass_msun"),
+                    ("final CO core", "c_core_mass_msun"))
+
+
+def wide_check(grid: Grid) -> dict[tuple[str, str, str], list[float]]:
+    """Each rebuilt track's largest error, by (axis, stage, quantity), from the same leave-one-out
+    rebuilds as `leave_one_out`, over the main sequence, after it, and at the track's end."""
+    out: dict[tuple[str, str, str], list[float]] = {}
+    for axis, _f, _m, w, trio in _trios(grid, 454):
+        n = min(grid.n_rows[c] for c in trio)
+        lo, truth, hi = (grid.rows(*c)[:n] for c in trio)
+        guess = (1 - w) * lo + w * hi
+        stages = [("main sequence", slice(201, 454))]
+        if n > 455:
+            stages.append(("after the main sequence", slice(453, n)))
+        for stage, rows in stages:
+            for name, col in WIDE_QUANTITIES:
+                j = grid.columns.index(col)
+                g, t = guess[rows, j], truth[rows, j]
+                if col == "age_yr":
+                    g, t = np.log10(g), np.log10(t)
+                out.setdefault((axis, stage, name), []).append(float(np.abs(g - t).max()))
+        # Only trios of equal length: otherwise row n-1 is not the left-out track's final state
+        if str(grid.ending[trio[1]]) in FINAL_ENDINGS and len({grid.n_rows[c] for c in trio}) == 1:
+            for name, col in FINAL_QUANTITIES:
+                j = grid.columns.index(col)
+                if min(lo[-1, j], truth[-1, j], hi[-1, j]) > 0:
+                    out.setdefault((axis, "end of the track", name), []).append(
+                        float(abs(guess[-1, j] / truth[-1, j] - 1)))
+    return out
+
+
+def float32_error(archive: Path, directory: Path = GRIDS) -> dict[str, tuple[float, float]]:
+    """Column -> (largest absolute, largest relative) difference between one converted grid file
+    and the float64 values streamed from its MIST archive."""
+    grid = load_grid(directory)
+    tracks = list(read_archive(archive))
+    f = int(np.flatnonzero(np.isclose(grid.fehs, tracks[0].feh))[0])
+    index = {float(m): i for i, m in enumerate(grid.masses_msun)}
+    worst = np.zeros((2, len(grid.columns)))
+    for t in tracks:
+        stored = grid.rows(f, index[t.initial_mass_msun])
+        err = np.abs(stored - t.data)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            # Below ~1e-30 float32 stores 0 (underflow): a 100% relative error that means nothing
+            rel = np.where(np.abs(t.data) > 1e-30, err / np.abs(t.data), 0.0)
+        worst = np.fmax(worst, [np.nanmax(err, axis=0), np.nanmax(rel, axis=0)])
+    return {c: (float(a), float(r)) for c, a, r in zip(grid.columns, *worst)}
+
+
+def loo_report(grid: Grid, archive: Path | None = None) -> str:
     lines = [
         "# MIST interpolation check",
         "",
@@ -249,13 +313,39 @@ def loo_report(grid: Grid) -> str:
         lines += ["", f"Worst ten along {axis}, up to 13.8 Gyr:", "",
                   "| Mass (M☉) | [Fe/H] | log L error | log Teff error |", "| --- | --- | --- | --- |",
                   *[f"| {r[0]:g} | {r[1]:+.2f} | {r[4]:.4f} | {r[5]:.4f} |" for r in worst]]
+    lines += [
+        "", "## Every stage and more quantities", "",
+        ("The same rebuilds, compared over the main sequence (EEP 202–454) and after it (EEP 454 to "
+         "the last EEP all three tracks reach), in dex; `log age` is the age at which each EEP, "
+         "and so each phase, is reached. At the end of tracks that end finally (white dwarf or end "
+         "of carbon burning), the final mass and core masses that the remnant rules use are "
+         "compared as a fraction; trios where MIST gives no core mass are left out."),
+        "",
+        "| Axis | Stage | Quantity | Tracks | Median | 95th percentile | Worst |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for (axis, stage, name), errs in wide_check(grid).items():
+        a = np.array(errs)
+        fmt = "{:.1%}" if stage == "end of the track" else "{:.4f}"
+        lines.append(f"| {axis} | {stage} | {name} | {len(a)} | " + " | ".join(
+            fmt.format(x) for x in (np.median(a), np.percentile(a, 95), a.max())) + " |")
+    if archive is not None:
+        lines += [
+            "", "## Storage precision", "",
+            (f"`mist.py` stores every column but age as float32. Largest difference between the "
+             f"stored grid and the float64 values streamed from `{archive.name}`:"),
+            "", "| Column | Largest absolute difference | Largest relative difference |",
+            "| --- | --- | --- |",
+            *[f"| `{c}` | {a:.2g} | {r:.2g} |" for c, (a, r) in float32_error(archive).items()],
+        ]
     return "\n".join(lines) + "\n"
 
 
 def main(argv: list[str]) -> None:
     if argv != ["check"]:
         raise SystemExit(__doc__)
-    REPORT.write_text(loo_report(load_grid()))
+    archive = CACHE / "MIST_v1.2_feh_p0.00_afe_p0.0_vvcrit0.4_EEPS.txz"
+    REPORT.write_text(loo_report(load_grid(), archive if archive.exists() else None))
     print(f"wrote {REPORT}")
 
 

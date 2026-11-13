@@ -238,15 +238,20 @@ def convert(archive: Path, out_dir: Path = GRIDS) -> Path:
         age[i, :t.n_rows] = t.data[:, 0]
     out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / archive.name.replace(".txz", ".npz")
-    np.savez_compressed(
-        out, data=data, age_yr=age, columns=np.array(list(COLUMNS[t0.version])),
-        masses_msun=np.array([t.initial_mass_msun for t in tracks]),
-        n_rows=np.array([t.n_rows for t in tracks]),
-        last_primary_eep=np.array([t.last_primary_eep for t in tracks]),
-        ending=np.array([t.ending for t in tracks]),
-        star_type=np.array([t.star_type for t in tracks]),
-        feh=t0.feh, zinit=t0.zinit, yinit=t0.yinit, vvcrit=t0.vvcrit, version=t0.version,
-    )
+    # Written beside the target and renamed, so a killed run never leaves a broken grid file
+    # (a file handle, so numpy adds no .npz and load_grid's glob never picks up the partial file)
+    tmp = out.with_name(out.name + ".part")
+    with tmp.open("wb") as fh:
+        np.savez_compressed(
+            fh, data=data, age_yr=age, columns=np.array(list(COLUMNS[t0.version])),
+            masses_msun=np.array([t.initial_mass_msun for t in tracks]),
+            n_rows=np.array([t.n_rows for t in tracks]),
+            last_primary_eep=np.array([t.last_primary_eep for t in tracks]),
+            ending=np.array([t.ending for t in tracks]),
+            star_type=np.array([t.star_type for t in tracks]),
+            feh=t0.feh, zinit=t0.zinit, yinit=t0.yinit, vvcrit=t0.vvcrit, version=t0.version,
+        )
+    tmp.replace(out)
     return out
 
 

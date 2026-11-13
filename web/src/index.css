@@ -160,6 +160,11 @@ dd {
   color: #f0d58a;
 }
 
+.prov-substituted {
+  background: #3d2028;
+  color: #f08aa8;
+}
+
 .prov-derived {
   background: #20363d;
   color: #8ad8f0;

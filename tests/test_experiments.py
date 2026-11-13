@@ -115,3 +115,18 @@ def test_remnants_against_metallicity():
     poor, rich = np.array(fehs) <= -1.5, np.array(fehs) >= 0
     assert min(np.array(he)[poor]) > max(np.array(he)[rich])
     assert min(np.array(bh)[poor]) > max(np.array(bh)[rich])
+
+
+@needs_grid
+def test_population_takes_the_nearest_swept_mass():
+    # Each star takes the remnant of the nearest swept mass in log mass; recount by brute force
+    p = {**experiments.DEFAULTS, "feh": "0:0:1", "masses": 15, "stars": 20_000}
+    shares = experiments.population(p)["panels"][0]["rows"]
+    masses = np.array([m for m in experiments.mass_grid(15) if m <= HI])
+    stars = experiments.kroupa_sample(p["stars"], p["seed"])
+    nearest = np.abs(np.log(stars)[:, None] - np.log(masses)[None, :]).argmin(axis=1)
+    kinds = np.array([c["remnant"] for c in experiments.sweep(tuple(masses), (0.0,))[0]])
+    for row in shares:
+        assert row["values"][0] == pytest.approx(100 * np.mean(kinds[nearest] == row["label"]),
+                                                 rel=1e-4, abs=1e-9)
+    assert sum(r["values"][0] for r in shares) == pytest.approx(100, rel=1e-4)
