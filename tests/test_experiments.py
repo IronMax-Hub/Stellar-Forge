@@ -154,10 +154,13 @@ def test_eep_columns_reads_the_main_sequence():
 
 def fake_zams_cell(args):
     """A stand-in solve, at module level so the worker processes can unpickle it."""
-    mass, feh = args
+    mass, feh, *guess = args
+    start = "MIST" if not guess else "a neighbour"
     if mass == 2.0:
-        return {"mass": mass, "feh": feh, "converged": False, "error": "test", "seconds": 0}
-    return {"mass": mass, "feh": feh, "converged": True, "delta_log_l_lsun": 0.01,
+        return {"mass": mass, "feh": feh, "converged": False, "error": "test", "seconds": 0,
+                "start": start}
+    return {"mass": mass, "feh": feh, "converged": True, "start": start,
+            "solution": (1e16, 1e7, 1.0, 1.0), "delta_log_l_lsun": 0.01,
             "delta_log_r_rsun": -0.02, "delta_log_t_c_k": 0.0, "seconds": 0,
             "pp_share": 0.9 if mass < 1.5 else 0.3, "conv_core_frac": 0.1 * (mass > 1.5)}
 

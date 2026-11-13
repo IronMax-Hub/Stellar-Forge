@@ -298,17 +298,24 @@ EXTENSION_MASSES = (0.8, 0.9, 1.0, 1.12, 1.24, 1.4, 1.56, 1.74, 1.94, 2.18, 2.42
                     3.8, 4.2, 4.8, 5.2, 5.8, 6.6, 7.4, 8.0, 9.0, 10.0, 11.0, 13.0, 14.0, 16.0,
                     18.0, 20.0)
 GATE = {"log_l_lsun": 0.1, "log_r_rsun": 0.1, "log_t_c_k": 0.05}   # dex, the Phase 4 tolerances
+MIST_STOPS_AT_ZAMS = "MIST track stops at the zero-age EEP"
 MIST_BURNED = 0.05      # central hydrogen burned before MIST's burning and core are read
 CORE_FROM = 0.02        # a convective core counts from this share of the star's mass
 
 
 def _zams_cell(args) -> dict:
-    mass, feh = args
+    """One star: from MIST's zero-age star, or from `guess` (P_c, T_c, R, L) when given."""
+    mass, feh, *rest = args
+    guess = rest[0] if rest else None
     start = time.perf_counter()
+    cell = {"mass": mass, "feh": feh, "converged": False, "error": None, "start": "MIST"}
+    if evolution.build_track(mass, feh).ending == "zero-age main sequence":
+        # The MIST track stops at EEP 202 (16 M☉ at [Fe/H] +0.25, still contracting there): no
+        # zero-age star to compare with, so the star is labelled, not solved
+        return cell | {"error": MIST_STOPS_AT_ZAMS, "seconds": 0.0}
     mz = structure.mist_zams(mass, feh)
-    cell = {"mass": mass, "feh": feh, "converged": False, "error": None}
     try:
-        model = structure.solve_zams(mass, feh, composition=mz.composition)
+        model = structure.solve_zams(mass, feh, composition=mz.composition, guess=guess)
     except (RuntimeError, ValueError, FloatingPointError) as e:
         cell["error"] = str(e)
     else:
@@ -318,6 +325,8 @@ def _zams_cell(args) -> dict:
         conv = q["convective"]
         core = model.m_kg[np.argmin(conv)] / model.m_kg[-1] if conv[0] else 0.0
         cell |= {"converged": True,
+                 "solution": (model.p_c_pa, model.t_c_k, model.radius_rsun,
+                              model.luminosity_lsun),
                  "delta_log_l_lsun": np.log10(model.luminosity_lsun) - mz.log_l_lsun,
                  "delta_log_r_rsun": np.log10(model.radius_rsun) - mz.log_r_rsun,
                  "delta_log_t_c_k": np.log10(model.t_c_k) - mz.log_t_c_k,
@@ -342,6 +351,24 @@ def zams_extension(p) -> dict:
     with Pool(4) as pool:   # the machine budget: at most 4 workers
         flat = pool.map(_zams_cell, [(m, f) for f in fehs for m in masses], chunksize=1)
     cells = [flat[i * len(masses):(i + 1) * len(masses)] for i in range(len(fehs))]
+    # A star that fails from MIST's values is retried from each converged neighbour's solution in
+    # turn (the nearer mass first), on the same 4 workers
+    retries = []
+    for row in cells:
+        for k, c in enumerate(row):
+            if not c["converged"] and c.get("error") != MIST_STOPS_AT_ZAMS:
+                near = sorted((j for j, d in enumerate(row) if d["converged"]),
+                              key=lambda j: abs(np.log(masses[j] / masses[k])))[:2]
+                retries.append((row, k, near))
+    with Pool(4) as pool:
+        tried = pool.map(_zams_cell, [(masses[k], row[k]["feh"], row[j]["solution"])
+                                      for row, k, near in retries for j in near], chunksize=1)
+    i = 0
+    for row, k, near in retries:
+        for j in near:
+            if tried[i]["converged"] and not row[k]["converged"]:
+                row[k] = tried[i] | {"start": f"the converged {masses[j]} M☉ solution"}
+            i += 1
     # MIST's own pp and CNO luminosities (log10 L☉) and convective-core mass. At EEP 202 MIST's
     # lower-mass stars still burn their initial carbon-12 and helium-3 out of equilibrium, with a
     # transient convective core at every mass, so these are read once 5% of the central hydrogen
@@ -362,7 +389,9 @@ def zams_extension(p) -> dict:
         return c[key] if c["converged"] else np.nan
 
     def word(c):
-        return None if c["converged"] else "did not converge"
+        if c["converged"]:
+            return None
+        return MIST_STOPS_AT_ZAMS if c.get("error") == MIST_STOPS_AT_ZAMS else "did not converge"
 
     def delta_panel(key, title):
         rows = [export.build_row(label=f"[Fe/H] {f:+.2f}", y=f, values=[value(c, key) for c in row],
@@ -411,7 +440,11 @@ def zams_extension(p) -> dict:
                     _crossing(masses, [v > CORE_FROM for v in mist_core[f]], 0.5)],
             provenance=["derived"] * 9))   # MIST's crossings are interpolated here, so derived
     failed = [f"{c['mass']} M☉ at [Fe/H] {c['feh']:+.2f}" for row in cells for c in row
-              if not c["converged"]]
+              if not c["converged"] and c.get("error") != MIST_STOPS_AT_ZAMS]
+    no_mist = [f"{c['mass']} M☉ at [Fe/H] {c['feh']:+.2f}" for row in cells for c in row
+               if c.get("error") == MIST_STOPS_AT_ZAMS]
+    rescued = [f"{c['mass']} M☉ at [Fe/H] {c['feh']:+.2f} (from {c['start']})" for row in cells
+               for c in row if c["converged"] and c["start"] != "MIST"]
     return export.build_experiment(
         name="zams-extension", title="Zero-age stars from 0.8 to 20 M☉ against MIST",
         summary=(f"The Phase 4 structure solver (milestone 5 physics) at {len(masses)} MIST grid "
@@ -420,6 +453,10 @@ def zams_extension(p) -> dict:
                  "fail to converge are reported, not forced. "
                  + (f"Did not converge: {'; '.join(failed)}." if failed else
                     "Every mass converged.")
+                 + (f" Not compared, as the MIST track stops at EEP 202: {'; '.join(no_mist)}."
+                    if no_mist else "")
+                 + (f" Converged only when started from a neighbour's solution: "
+                    f"{'; '.join(rescued)}." if rescued else "")
                  + " MIST's pp, CNO and convective-core values are read once 5% of the central "
                  "hydrogen has burned: at EEP 202 its lower-mass stars still burn carbon-12 and "
                  "helium-3 out of equilibrium, with transient convective cores. Crossings are "
