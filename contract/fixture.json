@@ -1,6 +1,6 @@
 {
  "meta": {
-  "schema_version": 5,
+  "schema_version": 7,
   "generator": {
    "name": "stellarforge",
    "version": "0.1.0",
@@ -211,6 +211,194 @@
        "published"
       ]
      }
+    ]
+   }
+  ]
+ },
+ "polytropes": {
+  "n_values": [
+   1.0,
+   5.0
+  ],
+  "models": [
+   {
+    "n": 1.0,
+    "provenance": "derived",
+    "flags": [],
+    "xi1": 3.14159,
+    "mass_constant": 3.14159,
+    "density_concentration": 3.28987,
+    "sun_rho_c_kg_m3": 4640.0,
+    "sun_p_c_pa": 1000000000000000.0,
+    "sun_t_c_k": 7000000.0,
+    "radius_frac": [
+     0.0,
+     0.5,
+     1.0
+    ],
+    "xi": [
+     0.0,
+     1.5708,
+     3.14159
+    ],
+    "theta": [
+     1.0,
+     0.63662,
+     0.0
+    ],
+    "mass_frac": [
+     0.0,
+     0.31831,
+     1.0
+    ],
+    "density_frac": [
+     1.0,
+     0.63662,
+     0.0
+    ],
+    "pressure_frac": [
+     1.0,
+     0.405285,
+     0.0
+    ]
+   },
+   {
+    "n": 5.0,
+    "provenance": "derived",
+    "flags": [
+     "no_surface_profile_cut_at_xi_50"
+    ],
+    "xi1": null,
+    "mass_constant": 1.73205,
+    "density_concentration": null,
+    "sun_rho_c_kg_m3": null,
+    "sun_p_c_pa": null,
+    "sun_t_c_k": null,
+    "radius_frac": [
+     0.0,
+     1.0
+    ],
+    "xi": [
+     0.0,
+     50.0
+    ],
+    "theta": [
+     1.0,
+     0.0346
+    ],
+    "mass_frac": [
+     0.0,
+     0.9982
+    ],
+    "density_frac": [
+     1.0,
+     5e-08
+    ],
+    "pressure_frac": [
+     1.0,
+     1.7e-09
+    ]
+   }
+  ]
+ },
+ "profiles": {
+  "models": [
+   {
+    "mass_msun": 1.0,
+    "feh": 0.0,
+    "provenance": "derived",
+    "method": "hand-written test profile",
+    "flags": [
+     "test"
+    ],
+    "x": 0.7154,
+    "y": 0.2703,
+    "z": 0.0143,
+    "log_l_lsun": -0.1,
+    "log_r_rsun": -0.04,
+    "log_teff_k": 3.75,
+    "log_t_c_k": 7.14,
+    "log_rho_c_kg_m3": 4.94,
+    "p_c_pa": 1.6e+16,
+    "energy_core_r_frac": 0.33,
+    "pp_share": 0.998,
+    "mist": {
+     "provenance": "published",
+     "log_l_lsun": -0.13,
+     "log_r_rsun": -0.05,
+     "log_teff_k": 3.76,
+     "log_t_c_k": 7.14,
+     "log_rho_c_kg_m3": 4.9,
+     "delta_log_l_lsun": 0.03,
+     "delta_log_r_rsun": 0.01,
+     "delta_log_teff_k": -0.01,
+     "delta_log_t_c_k": 0.0,
+     "delta_log_rho_c_kg_m3": 0.04
+    },
+    "r_frac": [
+     0.0,
+     0.5,
+     1.0
+    ],
+    "m_frac": [
+     0.0,
+     0.9,
+     1.0
+    ],
+    "l_frac": [
+     0.0,
+     1.0,
+     1.0
+    ],
+    "t_frac": [
+     1.0,
+     0.2,
+     0.0004
+    ],
+    "rho_frac": [
+     1.0,
+     0.01,
+     2e-09
+    ],
+    "p_frac": [
+     1.0,
+     0.001,
+     6e-13
+    ],
+    "eps_pp_w_kg": [
+     0.0015,
+     1e-08,
+     0.0
+    ],
+    "eps_cno_w_kg": [
+     2e-05,
+     0.0,
+     0.0
+    ],
+    "kappa_m2_kg": [
+     0.14,
+     2.0,
+     0.03
+    ],
+    "nabla": [
+     0.39,
+     0.4,
+     0.13
+    ],
+    "nabla_ad": [
+     0.4,
+     0.4,
+     0.39
+    ],
+    "nabla_rad": [
+     0.39,
+     3.0,
+     0.13
+    ],
+    "convective": [
+     false,
+     true,
+     false
     ]
    }
   ]

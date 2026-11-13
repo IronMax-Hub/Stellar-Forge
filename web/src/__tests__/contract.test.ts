@@ -62,6 +62,27 @@ describe("data contract", () => {
     const empty = fixture();
     delete empty.grid;
     delete empty.experiment;
-    expect(() => parseDocument(empty)).toThrow(/grid or an experiment/);
+    delete empty.polytropes;
+    delete empty.profiles;
+    expect(() => parseDocument(empty)).toThrow(/grid, an experiment, a polytropes or a profiles/);
+  });
+
+  it("reads zero-age profiles, allows no MIST star, and rejects uneven arrays", () => {
+    const profile = (raw: Raw) => (raw.profiles.models as Record<string, unknown>[])[0];
+    expect(parseDocument(fixture()).profiles!.models[0].convective[1]).toBe(true);
+    const noMist = fixture();
+    profile(noMist).mist = null;
+    expect(parseDocument(noMist).profiles!.models[0].mist).toBeNull();
+    const uneven = fixture();
+    (profile(uneven).convective as boolean[]).pop();
+    expect(() => parseDocument(uneven)).toThrow(/models\[0\]\.convective/);
+  });
+
+  it("reads polytropes, allows n = 5's nulls, and rejects uneven profiles", () => {
+    const doc = parseDocument(fixture());
+    expect(doc.polytropes!.models[1].xi1).toBeNull();
+    const uneven = fixture();
+    ((uneven.polytropes.models as Record<string, number[]>[])[0].mass_frac).pop();
+    expect(() => parseDocument(uneven)).toThrow(/models\[0\]\.mass_frac/);
   });
 });

@@ -7,12 +7,12 @@ web loader parses it. Both assert the same `schema_version`. The tests check sha
 Changing the format: edit the fixture, raise `schema_version` by one in the fixture,
 `stellarforge/__init__.py` and `web/src/data/types.ts`, and update both sides until both tests pass.
 
-Schema version 5 (the `substituted` provenance; version 4 added the
+Schema version 7 (the `profiles` block; version 6 added `polytropes`, version 5 the `substituted` provenance, version 4 the
 `experiment` block; version 3 added `remnant`, version 2 moved
 `track` inside `grid`). The fixture's numbers are hand-written test data, not physics.
 
 A document is `meta` plus one or more blocks: Star Builder files carry `grid`, experiment results
-carry `experiment`. The fixture holds every block.
+carry `experiment`, `polytropes.json` carries `polytropes` and `zams.json` carries `profiles`. The fixture holds every block.
 
 ## `meta` — carried by every export
 
@@ -111,3 +111,51 @@ curve over `x_values`) or a table (one cell per `columns` entry).
 | `rows[].values` | numbers or nulls | one per cell; null where the cell has no number |
 | `rows[].labels` | strings or nulls | one per cell: a word shown instead of the number, such as `track incomplete` or a remnant type |
 | `rows[].provenance` | provenances or nulls | one per cell: where its value came from |
+
+## `polytropes` — Lane–Emden polytropes (`stellarforge/structure.py`)
+
+Written by `python -m stellarforge.export polytropes` as `web/public/data/polytropes.json`. The
+view's n slider snaps to `n_values`. Every model has the same number of points, evenly spaced in
+radius. Fields without a unit are dimensionless.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `n_values` | numbers | every exported polytropic index, one model each, same order |
+| `models[].n` | number | the polytropic index |
+| `models[].provenance` | provenance | always `derived`: solved by Stellar-Forge |
+| `models[].flags` | strings | `no_surface_profile_cut_at_xi_50` for n = 5, which has no surface: its radii are ξ / 50 |
+| `models[].xi1` | number or null | the first zero of θ, the surface; null for n = 5 |
+| `models[].mass_constant` | number | −ξ₁² θ′(ξ₁); √3 for n = 5 |
+| `models[].density_concentration` | number or null | central over mean density, ρc/ρ̄; null for n = 5 |
+| `models[].sun_rho_c_kg_m3`, `.sun_p_c_pa`, `.sun_t_c_k` | numbers or null | the polytrope scaled to 1 M☉ and 1 R☉, ideal gas with μ = 0.617 (see `meta.models`): central density, pressure and temperature; null for n = 5 |
+| `models[].radius_frac` | numbers | r/R, from 0 to 1 |
+| `models[].xi` | numbers | the Lane–Emden radius ξ |
+| `models[].theta` | numbers | θ(ξ); also T/Tc for an ideal gas of uniform composition |
+| `models[].mass_frac` | numbers | m(r)/M |
+| `models[].density_frac`, `.pressure_frac` | numbers | ρ/ρc and P/Pc |
+
+## `profiles` — zero-age main-sequence structure (`stellarforge/structure.py`)
+
+Written by `python -m stellarforge.export zams` as `web/public/data/zams.json`: one `profile` per
+star in `models`. Arrays run from the centre to the surface, one entry per point, all equally long;
+the outer half of the mass is sampled evenly in log(1 − m/M). Fields without a unit are
+dimensionless.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `mass_msun`, `feh` | numbers | the star: initial mass, M☉, and [Fe/H], dex |
+| `provenance` | provenance | always `derived`: solved by Stellar-Forge |
+| `method` | string | how the model was made |
+| `flags` | strings | validity warnings, such as `kww_formulae_not_yet_source_checked` |
+| `x`, `y`, `z` | numbers | mass fractions of hydrogen, helium and metals |
+| `log_l_lsun`, `log_r_rsun`, `log_teff_k` | numbers | the model's luminosity, radius and effective temperature |
+| `log_t_c_k`, `log_rho_c_kg_m3`, `p_c_pa` | numbers | central temperature, density (kg/m³) and pressure (Pa) |
+| `energy_core_r_frac` | number | r/R inside which 99% of the luminosity is produced |
+| `pp_share` | number | the pp chain's share of the energy generated (the rest is CNO) |
+| `mist` | object or null | MIST's zero-age star (EEP 202) of the same mass and [Fe/H]: `provenance` (`published`), the five `log_` values above, and `delta_<name>`, model minus MIST in dex |
+| `r_frac`, `m_frac`, `l_frac` | numbers | r/R, m/M and L(r)/L |
+| `t_frac`, `rho_frac`, `p_frac` | numbers | T/Tc, ρ/ρc and P/Pc |
+| `eps_pp_w_kg`, `eps_cno_w_kg` | numbers | energy generation by the pp chain and the CNO cycle, W/kg |
+| `kappa_m2_kg` | numbers | Rosseland mean opacity, m²/kg |
+| `nabla`, `nabla_ad`, `nabla_rad` | numbers | the actual, adiabatic and radiative temperature gradients d ln T / d ln P |
+| `convective` | booleans | true where the Schwarzschild criterion gives convection |

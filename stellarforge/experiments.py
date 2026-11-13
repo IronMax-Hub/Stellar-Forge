@@ -2,7 +2,7 @@
 
 Run: .venv/bin/python -m stellarforge.experiments <experiment> [options]
      experiments: lifetime-map, full-life-map, remnant-map, remnant-mass-curves, population,
-                  sun-metallicities, all
+                  sun-metallicities, all (the six above), zams-extension (Phase 4, ~11 minutes)
      options: --feh=-4:0.5:0.1   [Fe/H] from:to:step (maps and population)
               --masses=200       log-spaced initial masses, 0.1-300 M☉
               --stars=1000000    stars drawn from the IMF (population)
@@ -27,7 +27,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import evolution, export, remnants
+from . import evolution, export, mist, remnants, structure
 from .colour import temperature_to_rgb
 
 ROOT = Path(__file__).parent.parent
@@ -289,6 +289,156 @@ EXPERIMENTS = {"lifetime-map": lifetime_map, "full-life-map": full_life_map,
                "population": population, "sun-metallicities": sun_metallicities}
 
 
+# ---- Phase 4: the zero-age solver from 0.8 to 20 M☉ (milestone 6, a goal) ----------------------
+
+EXTENSION_FEHS = (-1.0, 0.0, 0.25)
+# 30 MIST grid masses nearest to 30 log-spaced values over 0.8-20 M☉, so each model is compared with
+# a published track rather than an interpolated one
+EXTENSION_MASSES = (0.8, 0.9, 1.0, 1.12, 1.24, 1.4, 1.56, 1.74, 1.94, 2.18, 2.42, 2.72, 3.0, 3.4,
+                    3.8, 4.2, 4.8, 5.2, 5.8, 6.6, 7.4, 8.0, 9.0, 10.0, 11.0, 13.0, 14.0, 16.0,
+                    18.0, 20.0)
+GATE = {"log_l_lsun": 0.1, "log_r_rsun": 0.1, "log_t_c_k": 0.05}   # dex, the Phase 4 tolerances
+MIST_BURNED = 0.05      # central hydrogen burned before MIST's burning and core are read
+CORE_FROM = 0.02        # a convective core counts from this share of the star's mass
+
+
+def _zams_cell(args) -> dict:
+    mass, feh = args
+    start = time.perf_counter()
+    mz = structure.mist_zams(mass, feh)
+    cell = {"mass": mass, "feh": feh, "converged": False, "error": None}
+    try:
+        model = structure.solve_zams(mass, feh, composition=mz.composition)
+    except (RuntimeError, ValueError, FloatingPointError) as e:
+        cell["error"] = str(e)
+    else:
+        q = structure.profile_quantities(model)
+        pp, cno = np.trapezoid(q["eps_pp_w_kg"], model.m_kg), np.trapezoid(q["eps_cno_w_kg"],
+                                                                         model.m_kg)
+        conv = q["convective"]
+        core = model.m_kg[np.argmin(conv)] / model.m_kg[-1] if conv[0] else 0.0
+        cell |= {"converged": True,
+                 "delta_log_l_lsun": np.log10(model.luminosity_lsun) - mz.log_l_lsun,
+                 "delta_log_r_rsun": np.log10(model.radius_rsun) - mz.log_r_rsun,
+                 "delta_log_t_c_k": np.log10(model.t_c_k) - mz.log_t_c_k,
+                 "pp_share": pp / (pp + cno), "conv_core_frac": core}
+    cell["seconds"] = time.perf_counter() - start
+    return cell
+
+
+def _crossing(masses, values, level: float) -> float:
+    """The first mass where values reach `level`, interpolated in log mass (NaN if never)."""
+    v = np.asarray(values, dtype=float)
+    for k in range(1, len(v)):
+        a, b = v[k - 1], v[k]
+        if np.isfinite(a) and np.isfinite(b) and (a - level) * (b - level) <= 0 and a != b:
+            w = (level - a) / (b - a)
+            return float(np.exp((1 - w) * np.log(masses[k - 1]) + w * np.log(masses[k])))
+    return np.nan
+
+
+def zams_extension(p) -> dict:
+    masses, fehs = EXTENSION_MASSES, EXTENSION_FEHS
+    with Pool(4) as pool:   # the machine budget: at most 4 workers
+        flat = pool.map(_zams_cell, [(m, f) for f in fehs for m in masses], chunksize=1)
+    cells = [flat[i * len(masses):(i + 1) * len(masses)] for i in range(len(fehs))]
+    # MIST's own pp and CNO luminosities (log10 L☉) and convective-core mass. At EEP 202 MIST's
+    # lower-mass stars still burn their initial carbon-12 and helium-3 out of equilibrium, with a
+    # transient convective core at every mass, so these are read once 5% of the central hydrogen
+    # has burned (central X down by MIST_BURNED from EEP 202): by then the transient cores below
+    # ~1.1 M☉ have mostly gone and the pp share has barely moved from its zero-age value.
+    mist_rows = {}
+    for f in fehs:
+        tracks = mist.eep_columns(mist.CACHE / f"MIST_v1.2_feh_{'m' if f < 0 else 'p'}"
+                                               f"{abs(f):.2f}_afe_p0.0_vvcrit0.4_EEPS.txz",
+                                  ("pp", "cno", "mass_conv_core", "center_h1"))
+        mist_rows[f] = {}
+        for m in masses:
+            t = tracks[m]
+            k = int(np.argmax(t["center_h1"] <= t["center_h1"][0] - MIST_BURNED))
+            mist_rows[f][m] = {n: float(t[n][k]) for n in ("pp", "cno", "mass_conv_core")}
+
+    def value(c, key):
+        return c[key] if c["converged"] else np.nan
+
+    def word(c):
+        return None if c["converged"] else "did not converge"
+
+    def delta_panel(key, title):
+        rows = [export.build_row(label=f"[Fe/H] {f:+.2f}", y=f, values=[value(c, key) for c in row],
+                                 labels=[word(c) for c in row], provenance=["derived"] * len(row))
+                for f, row in zip(fehs, cells)]
+        return export.build_panel(
+            title=f"{title}: model − MIST (gate ±{GATE[key.removeprefix('delta_')]} dex)",
+            kind="curves", rows=rows, x_values=masses, x_label="Initial mass (M☉)",
+            y_label="model − MIST (dex)", value_label="dex", log_x=True)
+
+    mist_pp = {f: [10 ** mist_rows[f][m]["pp"] / (10 ** mist_rows[f][m]["pp"]
+                                                   + 10 ** mist_rows[f][m]["cno"]) for m in masses]
+               for f in fehs}
+    mist_core = {f: [mist_rows[f][m]["mass_conv_core"] / m for m in masses] for f in fehs}
+
+    def compare_panel(title, y_label, key, mist_values):
+        rows = []
+        for f, row in zip(fehs, cells):
+            rows.append(export.build_row(label=f"model [Fe/H] {f:+.2f}", y=f,
+                                         values=[value(c, key) for c in row],
+                                         labels=[word(c) for c in row],
+                                         provenance=["derived"] * len(row)))
+            # Shares and ratios computed here from MIST's published columns: derived
+            rows.append(export.build_row(label=f"MIST [Fe/H] {f:+.2f}", y=f, values=mist_values[f],
+                                         provenance=["derived"] * len(masses)))
+        return export.build_panel(title=title, kind="curves", rows=rows, x_values=masses,
+                                  x_label="Initial mass (M☉)", y_label=y_label, value_label="",
+                                  log_x=True)
+
+    columns = ["Masses converged", "Largest |Δ log L| (dex)", "Largest |Δ log R| (dex)",
+               "Largest |Δ log Tc| (dex)", "Masses within the gate",
+               "pp = CNO at (M☉), model", "pp = CNO at (M☉), MIST",
+               "Convective core from (M☉), model", "Convective core from (M☉), MIST"]
+    table = []
+    for f, row in zip(fehs, cells):
+        ok = [c for c in row if c["converged"]]
+        within = sum(all(abs(c[f"delta_{k}"]) <= tol for k, tol in GATE.items()) for c in ok)
+        worst = [max((abs(c[f"delta_{k}"]) for c in ok), default=np.nan) for k in GATE]
+        table.append(export.build_row(
+            label=f"[Fe/H] {f:+.2f}", y=f,
+            values=[len(ok), *worst, within,
+                    _crossing(masses, [value(c, "pp_share") for c in row], 0.5),
+                    _crossing(masses, mist_pp[f], 0.5),
+                    _crossing(masses, [value(c, "conv_core_frac") > CORE_FROM if c["converged"]
+                                       else np.nan for c in row], 0.5),
+                    _crossing(masses, [v > CORE_FROM for v in mist_core[f]], 0.5)],
+            provenance=["derived"] * 9))   # MIST's crossings are interpolated here, so derived
+    failed = [f"{c['mass']} M☉ at [Fe/H] {c['feh']:+.2f}" for row in cells for c in row
+              if not c["converged"]]
+    return export.build_experiment(
+        name="zams-extension", title="Zero-age stars from 0.8 to 20 M☉ against MIST",
+        summary=(f"The Phase 4 structure solver (milestone 5 physics) at {len(masses)} MIST grid "
+                 f"masses and [Fe/H] {', '.join(f'{f:+.2f}' for f in fehs)}, compared with MIST's "
+                 "zero-age EEP 202 using each archive's X, Y and Z. A goal, not a gate: masses that "
+                 "fail to converge are reported, not forced. "
+                 + (f"Did not converge: {'; '.join(failed)}." if failed else
+                    "Every mass converged.")
+                 + " MIST's pp, CNO and convective-core values are read once 5% of the central "
+                 "hydrogen has burned: at EEP 202 its lower-mass stars still burn carbon-12 and "
+                 "helium-3 out of equilibrium, with transient convective cores. Crossings are "
+                 "interpolated in log mass between grid masses; a convective core counts from 2% "
+                 "of the star's mass, in the model and in MIST."),
+        panels=[delta_panel("delta_log_l_lsun", "Luminosity"),
+                delta_panel("delta_log_r_rsun", "Radius"),
+                delta_panel("delta_log_t_c_k", "Central temperature"),
+                compare_panel("pp chain's share of the energy (MIST after 5% of central H burned)",
+                              "pp / (pp + CNO)", "pp_share", mist_pp),
+                compare_panel("Convective core (MIST after 5% of central H burned)",
+                              "convective-core mass / M", "conv_core_frac", mist_core),
+                export.build_panel(title="Summary per metallicity", kind="table", rows=table,
+                                   columns=columns)])
+
+
+STRUCTURE_EXPERIMENTS = {"zams-extension": zams_extension}
+
+
 # ---- Figures --------------------------------------------------------------------------------
 
 def figure(experiment: dict, path: Path) -> None:
@@ -340,6 +490,17 @@ def figure(experiment: dict, path: Path) -> None:
 # ---- Running --------------------------------------------------------------------------------
 
 def result_document(name: str, params: dict) -> dict:
+    if name in STRUCTURE_EXPERIMENTS:
+        meta = export.build_meta(
+            dataset="MIST v1.2 zero-age stars (EEP 202) for comparison; OPAL and Ferguson et al. "
+                    "2005 opacity tables for the Asplund et al. 2009 mixture, from MESA",
+            models={"structure": "four structure equations fitted at half the mass, milestone 5: "
+                                 "tabulated opacity, pp and CNO, Saha ionisation of H and He, "
+                                 "mixing length 1.82"},
+            inputs={"masses": float(len(EXTENSION_MASSES)), "feh_count": float(len(EXTENSION_FEHS))},
+            reference_keys=["Choi2016", "Kippenhahn2012", "IglesiasRogers1996", "Asplund2009"],
+            created=export.git_commit_time())
+        return export.build_document(meta, experiment=STRUCTURE_EXPERIMENTS[name](params))
     meta = export.build_meta(
         dataset=export.DATASET,
         models={"track": "MIST v1.2 EEP tracks, bilinear EEP interpolation in log mass and [Fe/H]",
@@ -387,7 +548,7 @@ def run(name: str, params: dict, export_web: bool = False) -> Path:
 
 
 def parse(argv: list[str]) -> tuple[list[str], dict, bool]:
-    if not argv or argv[0] not in (*EXPERIMENTS, "all"):
+    if not argv or argv[0] not in (*EXPERIMENTS, *STRUCTURE_EXPERIMENTS, "all"):
         raise SystemExit(__doc__)
     params, export_web = dict(DEFAULTS), False
     for arg in argv[1:]:

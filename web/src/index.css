@@ -381,3 +381,20 @@ dd {
   padding: 0.35rem 0.6rem;
   text-align: left;
 }
+
+.zams-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  align-items: flex-start;
+  margin: 0.75rem 0;
+}
+
+.cross-section {
+  margin: 0;
+}
+
+.cross-section svg {
+  max-width: 100%;
+  height: auto;
+}

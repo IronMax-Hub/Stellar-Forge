@@ -1,4 +1,4 @@
-// The app: Star Builder (Phases 1-2) and Experiments (Phase 3).
+// The app: Star Builder (Phases 1-2), Experiments (Phase 3) and Inside the Star (Phase 4).
 // Star Builder: pick a mass and [Fe/H] from the exported grid and scrub a star's life, then see its
 // remnant. Every number shown comes from web/public/data, written by `python -m stellarforge.export
 // web`; this file only selects, scales and draws.
@@ -9,6 +9,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { parseDocument } from "./data/loader";
 import type { Grid, Meta, Provenance, Remnant, Track } from "./data/types";
 import Experiments from "./Experiments";
+import InsideTheStar from "./InsideTheStar";
 import { BLACK_HOLE_DISTANCE, BlackHoleView, START_ELEVATION_DEG } from "./rendering/blackHole/BlackHoleView";
 import { starDisplayCss } from "./rendering/starColour";
 
@@ -50,22 +51,26 @@ function prefetchAround({ grid }: GridFile) {
 
 const fmt = (x: number, digits = 4) => x.toPrecision(digits);
 
+type View = "star" | "experiments" | "inside";
+
 export default function App() {
-  const [view, setView] = useState<"star" | "experiments">("star");
-  // Experiments load on first opening; after that both views stay mounted and keep their state
-  const [experimentsOpened, setExperimentsOpened] = useState(false);
-  const show = (v: "star" | "experiments") => {
+  const [view, setView] = useState<View>("star");
+  // Other views load on first opening; after that every view stays mounted and keeps its state
+  const [opened, setOpened] = useState(new Set<View>(["star"]));
+  const show = (v: View) => {
     setView(v);
-    if (v === "experiments") setExperimentsOpened(true);
+    setOpened((o) => new Set(o).add(v));
   };
   return (
     <>
       <nav className="tabs" aria-label="Views">
         <button aria-pressed={view === "star"} onClick={() => show("star")}>Star Builder</button>
         <button aria-pressed={view === "experiments"} onClick={() => show("experiments")}>Experiments</button>
+        <button aria-pressed={view === "inside"} onClick={() => show("inside")}>Inside the Star</button>
       </nav>
       <div hidden={view !== "star"}><StarBuilder /></div>
-      {experimentsOpened && <div hidden={view !== "experiments"}><Experiments /></div>}
+      {opened.has("experiments") && <div hidden={view !== "experiments"}><Experiments /></div>}
+      {opened.has("inside") && <div hidden={view !== "inside"}><InsideTheStar /></div>}
     </>
   );
 }

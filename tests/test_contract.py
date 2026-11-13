@@ -15,11 +15,12 @@ FIXTURE = json.loads((Path(__file__).parent.parent / "contract" / "fixture.json"
 MAPS = {"inputs", "models", "phase_names"}
 # Fields that may be null: remnant values with no remnant or no MIST value, a row without y, no seed.
 NULLABLE = {"mass_msun", "radius_km", "cooling", "final_mass_msun", "he_core_mass_msun",
-            "co_core_mass_msun", "y", "seed"}
+            "co_core_mass_msun", "y", "seed", "xi1", "density_concentration", "sun_rho_c_kg_m3",
+            "sun_p_c_pa", "sun_t_c_k", "mist"}
 # Lists whose items may be null: experiment cells without a number, word or provenance.
 NULLABLE_ITEMS = {"values", "labels", "provenance"}
 # Blocks a document may carry beside `meta`; the fixture holds them all.
-BLOCKS = {"grid", "experiment"}
+BLOCKS = {"grid", "experiment", "polytropes", "profiles"}
 
 
 def kind(value):
@@ -125,6 +126,40 @@ def test_real_experiments_match_fixture_shape():
     params = {**experiments.DEFAULTS, "feh": "-1:0:0.5", "masses": 12, "stars": 1000}
     for name in experiments.EXPERIMENTS:
         assert_shape(experiments.result_document(name, params), FIXTURE)
+
+
+def test_polytrope_document_matches_fixture_shape():
+    document = export.polytrope_document()
+    assert_shape(document, FIXTURE)
+    models = document["polytropes"]["models"]
+    assert [m["n"] for m in models] == document["polytropes"]["n_values"]
+    for m in models:
+        assert m["radius_frac"][0] == 0 and m["radius_frac"][-1] == 1
+        assert m["mass_frac"][0] == 0 and m["density_frac"][0] == m["pressure_frac"][0] == 1
+        assert (m["mass_frac"][-1] == 1) == (m["n"] < 5), m["n"]
+    assert models[6]["n"] == 3 and round(models[6]["sun_t_c_k"], -5) == 1.21e7
+    with pytest.raises(ValueError):
+        export.build_polytrope(n=1, flags=[], xi1=1, mass_constant=1, density_concentration=1,
+                               sun=None, xi=[0, 1])
+
+
+def profile_kwargs(**changes):
+    arrays = {k: [0.0, 1.0] for k in export.PROFILE_ARRAYS} | {"convective": [False, True]}
+    scalars = dict.fromkeys(export.PROFILE_SCALARS, 0.5)
+    return {"mass_msun": 1.0, "feh": 0.0, "method": "test", "flags": ["test"], "x": 0.7,
+            "y": 0.28, "z": 0.02, "scalars": scalars, "p_c_pa": 1e16, "energy_core_r_frac": 0.3,
+            "pp_share": 0.99, "mist": scalars} | arrays | changes
+
+
+def test_profile_document_matches_fixture_shape():
+    meta = export.build_meta(dataset="test", models={"structure": "test"}, inputs={"stars": 1.0},
+                             reference_keys=["Choi2016"])
+    for mist in (dict.fromkeys(export.PROFILE_SCALARS, 0.4), None):
+        profile = export.build_profile(**profile_kwargs(mist=mist))
+        assert_shape(export.build_document(meta, profiles={"models": [profile]}), FIXTURE)
+    assert profile["mist"] is None
+    with pytest.raises(ValueError):
+        export.build_profile(**profile_kwargs(nabla=[1.0]))
 
 
 def test_schema_version_matches():
