@@ -150,7 +150,7 @@ EPS_PP0 = 1.07e-12
 # Milestone 4. The coefficients below are as given in Kippenhahn, Weigert & Weiss 2012 (cgs). The book
 # is not in documentation/references; Source checks.md records each against open sources: Kramers
 # coefficients against Carroll & Ostlie via Wikipedia, the pp rate within 1-2% of one rebuilt from
-# Adams & Grohs 2017's p + p rate, the CNO rate's form (its coefficient is not checked).
+# Adams & Grohs 2017's p + p rate, the CNO rate's form and NACRE-era coefficient (scaled to LUNA).
 # Kramers opacity, cm^2/g: free-free 3.68e22 (1 - Z)(1 + X) rho T^-3.5, bound-free
 # 4.34e25 Z (1 + X) rho T^-3.5, with the Gaunt and guillotine factors set to 1.
 KAPPA_FF0_CGS = 3.68e22
@@ -161,7 +161,12 @@ KAPPA_BF0_CGS = 4.34e25
 # CNO cycle, erg/g/s: 8.24e25 g14 X_CNO X rho T9^(-2/3) exp(-15.231 T9^(-1/3) - (T9 / 0.8)^2),
 # g14 = 1 - 2.00 T9 + 3.41 T9^2 - 2.43 T9^3.
 EPS_PP0_CGS = 2.57e4
-EPS_CNO0_CGS = 8.24e25
+# The CNO coefficient matches NACRE (Angulo et al. 1999): with the standard non-resonant rate and
+# 25.03 MeV kept per cycle it implies S(0) = 3.15 keV b for 14N(p,gamma)15O, against NACRE's 3.2.
+# LUNA's underground measurement gives S(0) = 1.7 keV b (Formicola et al. 2004; both values as quoted
+# by Weiss et al. 2005), and MIST's REACLIB rates follow it, so the rate is scaled by 1.7 / 3.15.
+CNO_LUNA_SCALE = 1.7 / 3.15
+EPS_CNO0_CGS = 8.24e25 * CNO_LUNA_SCALE
 # shortcut: C + N + O as a fixed share of Z: 0.657 from Asplund et al. 2009's photospheric C, N, O
 # (table 1) with X and Z from their table 4, rounded; upgrade by reading the mixture MIST uses.
 CNO_SHARE_OF_Z = 0.66
