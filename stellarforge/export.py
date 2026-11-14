@@ -194,9 +194,10 @@ def _check(value, allowed, what):
 def build_population_cell(*, m_star_msun: float, feh: float, n_systems: int, seed: int,
                           calibration: str, host_share: dict, planets_per_star: float,
                           systems_with_count: list[int], a_ice_au: float,
-                          systems_file: str) -> dict:
+                          systems_file: str, flags: list[str]) -> dict:
     """One grid cell's statistics. host_share: share of systems with at least one planet of each
-    class; systems_with_count[k]: systems with exactly k planets."""
+    class; systems_with_count[k]: systems with exactly k planets; flags: validity warnings, such as
+    the survey checks the model fails."""
     if set(host_share) != set(PLANET_CLASSES):
         raise ValueError(f"host_share needs one share per class {PLANET_CLASSES}")
     if sum(systems_with_count) != n_systems:
@@ -207,7 +208,8 @@ def build_population_cell(*, m_star_msun: float, feh: float, n_systems: int, see
             "host_share": {k: float(f"{host_share[k]:.5g}") for k in PLANET_CLASSES},
             "planets_per_star": float(f"{planets_per_star:.5g}"),
             "systems_with_count": [int(c) for c in systems_with_count],
-            "a_ice_au": float(f"{a_ice_au:.5g}"), "systems_file": systems_file}
+            "a_ice_au": float(f"{a_ice_au:.5g}"), "systems_file": systems_file,
+            "flags": [str(f) for f in flags]}
 
 
 def build_population(*, star_masses_msun, feh_values, calibration_mass_msun, calibration_feh,

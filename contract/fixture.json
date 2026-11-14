@@ -1,6 +1,6 @@
 {
  "meta": {
-  "schema_version": 8,
+  "schema_version": 9,
   "generator": {
    "name": "stellarforge",
    "version": "0.1.0",
@@ -447,7 +447,10 @@
      1
     ],
     "a_ice_au": 2.7,
-    "systems_file": "planets/systems_000.json"
+    "systems_file": "planets/systems_000.json",
+    "flags": [
+     "survey_check_failed: test flag"
+    ]
    }
   ],
   "conclusions": [

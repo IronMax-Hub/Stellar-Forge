@@ -2,7 +2,7 @@
 // Python writes these values; nothing here computes one.
 
 /** Must equal SCHEMA_VERSION in stellarforge/__init__.py and the fixture's meta.schema_version. */
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 export type Provenance = "published" | "interpolated" | "substituted" | "derived" | "predicted";
 export const PROVENANCES: readonly Provenance[] = ["published", "interpolated", "substituted", "derived", "predicted"];
@@ -189,6 +189,8 @@ export interface PopulationCell {
   a_ice_au: number;
   /** relative to the data folder */
   systems_file: string;
+  /** validity warnings, such as survey checks the model fails */
+  flags: string[];
 }
 
 /** The planet grid; the selectors snap to star_masses_msun and feh_values. */

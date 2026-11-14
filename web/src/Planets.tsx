@@ -133,6 +133,7 @@ function CellView({ cell }: { cell: PopulationCell }) {
           <dt>Systems simulated</dt><dd>{cell.n_systems.toLocaleString()} (seed {cell.seed})</dd>
           <dt>Planets per star (≥ 0.1 M⊕)</dt><dd>{cell.planets_per_star}<span className="prov">predicted</span></dd>
           <dt>Snow line</dt><dd>{cell.a_ice_au} AU</dd>
+          {cell.flags.length > 0 && <><dt>Warnings</dt><dd className="flags">{cell.flags.join("; ")}</dd></>}
           {PLANET_CLASSES.map((k) => (
             <Fragment key={k}><dt><i className="swatch" style={{ background: CLASS_COLOURS[k] }} />Systems with a {k}</dt>
               <dd>{(100 * cell.host_share[k]).toFixed(1)}%<span className="prov">predicted</span></dd></Fragment>

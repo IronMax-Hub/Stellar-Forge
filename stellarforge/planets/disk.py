@@ -1,4 +1,5 @@
-"""The protoplanetary disk: solids, gas, temperature and the snow line (Ida & Lin 2004a, 2004b).
+"""The protoplanetary disk's solids, its gas depletion and the snow line (Ida & Lin 2004a, 2004b;
+the gas profile itself is Paper VII's, in ida_lin_2013.py).
 
 Equation numbers refer to Ida & Lin 2004a (ApJ 604, 388; arXiv:astro-ph/0312144) unless stated.
 """
@@ -7,7 +8,6 @@ import numpy as np
 
 ETA_ICE = 4.2          # solids boost beyond the snow line (eq. 11; Hayashi 1981)
 SIGMA_D0 = 10.0        # g/cm² at 1 AU for f_d = 1 (eq. 11)
-SIGMA_G0 = 2.4e3       # g/cm² at 1 AU for f_g = 1 (eq. 12)
 
 
 def snow_line_au(m_star_msun):
@@ -39,18 +39,3 @@ def sigma_dust(a_au, f_d, a_ice_au):
 def gas_factor(f_g0, t_yr, tau_disk_yr):
     """f_g = f_g0 exp(-t/τ_disk): the gas is depleted globally and self-similarly (eq. 49)."""
     return np.asarray(f_g0) * np.exp(-np.asarray(t_yr) / tau_disk_yr)
-
-
-def sigma_gas(a_au, f_g):
-    """Σ_g = 2.4 × 10³ f_g (a/1 AU)^-3/2 g/cm² (eq. 12); pass f_g from gas_factor for time t."""
-    return SIGMA_G0 * np.asarray(f_g) * np.asarray(a_au) ** -1.5
-
-
-def temperature_k(a_au, l_star_lsun=1.0):
-    """Optically thin equilibrium temperature, T = 280 (a/1 AU)^-1/2 (L★/L☉)^1/4 K (eq. 14)."""
-    return 280.0 * np.asarray(a_au) ** -0.5 * np.asarray(l_star_lsun) ** 0.25
-
-
-def aspect_ratio(a_au):
-    """Disk scale height over radius, h/a = 0.05 (a/1 AU)^1/4 (eq. 16, for a solar-mass star)."""
-    return 0.05 * np.asarray(a_au) ** 0.25

@@ -7,7 +7,7 @@ web loader parses it. Both assert the same `schema_version`. The tests check sha
 Changing the format: edit the fixture, raise `schema_version` by one in the fixture,
 `stellarforge/__init__.py` and `web/src/data/types.ts`, and update both sides until both tests pass.
 
-Schema version 8 (the `population` and `systems` blocks; version 7 added `profiles`, version 6 `polytropes`, version 5 the `substituted` provenance, version 4 the
+Schema version 9 (validity `flags` on each `population` cell; version 8 added the `population` and `systems` blocks; version 7 added `profiles`, version 6 `polytropes`, version 5 the `substituted` provenance, version 4 the
 `experiment` block; version 3 added `remnant`, version 2 moved
 `track` inside `grid`). The fixture's numbers are hand-written test data, not physics.
 
@@ -190,6 +190,7 @@ Calibration labels are `observational constraint`, `prediction`, `parameter-sens
 | `systems_with_count` | integers | entry k: systems with exactly k planets |
 | `a_ice_au` | number | the snow line, AU |
 | `systems_file` | string | the cell's sample systems, relative to `web/public/data/` |
+| `flags` | strings | validity warnings: each survey check the model fails, with its numbers (ground rule 6) |
 
 ## `systems` — one cell's sample systems
 

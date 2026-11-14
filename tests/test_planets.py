@@ -4,18 +4,19 @@ classifier (build plan, Phase 5 Validation)."""
 import numpy as np
 import pytest
 
-from stellarforge.planets import classify, disk, growth, migration, population, surveys
+from stellarforge.planets import classify, disk, growth, population, surveys
+from stellarforge.planets import ida_lin_2013 as vii
 
 
 def test_disk_scalings():
     assert disk.sigma_dust(1.0, 1.0, 2.7) == pytest.approx(10.0)          # eq. 11 at 1 AU
     assert disk.sigma_dust(4.0, 1.0, 2.7) == pytest.approx(10 * 4.2 / 8)  # beyond the snow line
-    assert disk.sigma_gas(1.0, 1.0) == pytest.approx(2.4e3)               # eq. 12
+    assert vii.sigma_gas(10.0, 1.0) == pytest.approx(75.0)                # Paper VII eq. 15
     assert disk.f_dust(1.0, 0.3) == pytest.approx(10**0.3)                # f_d = f_g 10^[Fe/H]
     assert disk.gas_factor(2.0, 1e7, 1e7) == pytest.approx(2 / np.e)      # eq. 49
     assert disk.snow_line_au(1.0) == 2.7 and disk.snow_line_au(0.5) == pytest.approx(0.675)
-    # eq. 15 is where eq. 14 gives 170 K (with L ∝ M⁴): 2.7 AU for the Sun
-    assert disk.temperature_k(2.7) == pytest.approx(170, abs=1)
+    # Paper VII eq. 17 with L ∝ M⁴ is 2004a's eq. 15
+    assert disk.snow_line_from_luminosity_au(0.5**4) == pytest.approx(disk.snow_line_au(0.5))
 
 
 @pytest.mark.parametrize("a", [0.5, 1.0, 5.0, 20.0])
@@ -23,8 +24,6 @@ def test_isolation_masses_match_the_closed_forms(a):
     eta = 4.2 if a > 2.7 else 1.0
     sd = disk.sigma_dust(a, 1.0, 2.7)
     assert growth.isolation_mass(sd, a) == pytest.approx(0.16 * eta**1.5 * a**0.75)      # eq. 21
-    assert growth.no_isolation_mass(sd, a) == pytest.approx(1.2 * eta * a**0.5)          # eq. 23
-    assert growth.gas_isolation_mass(disk.sigma_gas(a, 1.0), a) == pytest.approx(50 * a**0.75)
 
 
 def test_gas_capture_scalings():
@@ -32,24 +31,21 @@ def test_gas_capture_scalings():
     # M_c,KH: τ_KH = τ_disk = 10⁷ yr at 4.6 M⊕ (eq. 31)
     assert (1e9 / 1e7) ** (1 / 3) == pytest.approx(4.6, abs=0.05)
     assert growth.kelvin_helmholtz_time_yr(4.6416) == pytest.approx(1e7, rel=1e-3)
-    assert growth.gap_opening_mass(1.0) == pytest.approx(120, rel=0.06)                  # eq. 38
-    assert growth.disk_gas_mass_limit(1.0, 4.0) == pytest.approx(580)                    # eq. 47
-    # eq. 18 at 1 AU for 1 M⊕ in the f_d = f_g = 1 disk
-    assert growth.core_accretion_time_yr(1, 1, 1, 1, 1) == pytest.approx(1.2e5)
+    # Paper VII eq. 19 at 1 AU for 1 M⊕ in the f_d = f_g = 1 disk
+    assert vii.core_accretion_time_yr(1, 1, 1, 1, 1) == pytest.approx(3.5e5)
 
 
 def test_migration():
-    # Type I for an Earth mass at 1 AU in the f_g = 1 disk takes ~10⁵ yr at C1 = 1, inward
-    rate = migration.type1_rate(1.0, 1.0, 1.0, c1=1.0)
-    assert rate < 0 and 1 / abs(rate) == pytest.approx(1.0e5, rel=0.05)
-    assert migration.type1_rate(1.0, 1.0, 1.0, c1=0.1) == pytest.approx(0.1 * rate)
-    assert migration.type1_rate(1.0, 1.0, 1.0, p=3.0) > 0       # outward above p = 2.92 (q = -1/2)
-    # Type II: eq. 65 for a Jupiter mass at 1 AU, f_g = 1, α = 10⁻³: 8 × 10⁴ yr, inward inside R_m
-    rate = migration.type2_rate(1.0, 317.83, 1.0, 0.0, 1e7)
-    assert rate == pytest.approx(-1 / 8e4)
-    assert migration.type2_rate(20.0, 317.83, 1.0, 0.0, 1e7) > 0                # beyond R_m = 10 AU
-    # ...and never faster than the gas: eq. 70 for a light planet in a massive disk
-    assert migration.type2_rate(1.0, 10.0, 30.0, 0.0, 1e7) == pytest.approx(-1 / 4.3e4)
+    # Paper VII type II, disk-dominated (eq. 32): 7 × 10⁴ yr at 1 AU, inward inside r_m
+    assert -1.0 / vii.type2_rate(1.0, 317.83, 1.0, 50.0) == pytest.approx(7e4)
+    assert vii.type2_rate(60.0, 317.83, 1.0, 50.0) > 0                        # outward beyond r_m
+    # planet-dominated once the disk inside r_m is lighter than the planet (eq. 34's definition)
+    light = vii.type2_rate(1.0, 317.83, 1e-3, 50.0)
+    assert -1.0 / light == pytest.approx(5 * np.sqrt(1 / 50) * 317.83 / vii.disk_accretion_rate(1e-3))
+    # r_m (eqs. 32-33): Paper VII's 15-150 AU for 1-10 Myr disks, growing as exp(2t / 3τ)
+    assert vii.viscous_couple_radius_au(0.0, 1e6) == pytest.approx(14.29, rel=1e-3)
+    assert vii.viscous_couple_radius_au(0.0, 1e7) == pytest.approx(142.9, rel=1e-3)
+    assert vii.viscous_couple_radius_au(3e6, 2e6) == pytest.approx(28.57 * np.e, rel=1e-3)
 
 
 def test_classes_at_their_boundaries():
@@ -60,6 +56,8 @@ def test_classes_at_their_boundaries():
     assert cl(15, 0.2, False) == "sub-Neptune"
     assert cl(2, 0.0099, False) == "super-Earth" and cl(1.99, 0.0, False) == "terrestrial"
     assert cl(3, 0.0, True) == "super-Earth"       # ice-rich super-Earths stay super-Earths
+    # A thin envelope on a body below 2 M⊕ does not make it a sub-Neptune
+    assert cl(2, 0.05, False) == "sub-Neptune" and cl(1.99, 0.05, False) == "terrestrial"
     with pytest.raises(ValueError):
         cl(1.0, 1.5, False)
 
@@ -165,7 +163,7 @@ def test_convoys_keep_resonant_spacing():
     m_all = state["core_mearth"][0] + state["env_mearth"][0]
     order = np.argsort(state["a_au"][0][m_all > 0])
     a, m = state["a_au"][0][m_all > 0][order], m_all[m_all > 0][order]
-    assert a[0] >= migration.INNER_EDGE_AU
+    assert a[0] >= population.INNER_EDGE_AU
     r_h = ((m[:-1] + m[1:]) / (3 * 332946.0487)) ** (1 / 3) * a[:-1]
     assert np.all(np.diff(a) >= population.B_TRAP_HILL * r_h * (1 - 1e-9))  # 5 Hill radii apart
 

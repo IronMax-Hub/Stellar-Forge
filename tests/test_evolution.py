@@ -45,6 +45,18 @@ def test_interpolates_in_log_mass_and_feh():
     assert list(t.values["phase"]) == [-1, 0, 0, 2, 2]
 
 
+def test_blends_carry_boundary_and_interpolation_flags(monkeypatch):
+    grid = synthetic_grid()     # two [Fe/H] values: every cell touches an edge
+    t = build_track(np.sqrt(2.0), -0.5, grid)
+    assert t.flags == ["near_grid_boundary"]
+    # A corner whose leave-one-out rebuild missed the target warns every blend that uses it
+    monkeypatch.setattr(evolution, "_over_target", lambda g: {(0, 1)})
+    flags = build_track(np.sqrt(2.0), -0.5, grid).flags
+    assert flags[0] == "near_grid_boundary"
+    assert flags[1].startswith("interpolation_error_may_exceed_0.02_dex")
+    assert build_track(2.0, 0.0, grid).flags == []      # a grid track is published as it is
+
+
 def test_never_blends_tracks_that_end_differently():
     endings = np.full((2, 3), "white-dwarf cooling sequence", dtype=object)
     endings[1, 1] = "post-AGB"
