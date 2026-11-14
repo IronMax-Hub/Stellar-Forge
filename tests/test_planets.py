@@ -4,7 +4,7 @@ classifier (build plan, Phase 5 Validation)."""
 import numpy as np
 import pytest
 
-from stellarforge.planets import classify, disk, growth, migration, population
+from stellarforge.planets import classify, disk, growth, migration, population, surveys
 
 
 def test_disk_scalings():
@@ -117,17 +117,28 @@ def test_annuli_share_the_disk_solids():
 def test_inner_core_stops_at_its_isolation_mass():
     state = population.evolve(_disk([[0.3, 1.0, 3.5]], tau=1e7), 1.0)
     iso = growth.isolation_mass(disk.sigma_dust(1.0, 1.0, 2.7), 1.0)   # eq. 20: 0.16 M⊕
-    assert state["core_mearth"][0, 1] == pytest.approx(iso, rel=0.01)   # type I moved it a little
+    assert state["core_mearth"][0, 1] == pytest.approx(iso, rel=0.02)   # type I moved it a little
     assert state["env_mearth"][0, 1] / state["core_mearth"][0, 1] < 0.01
     assert not state["ice_rich"][0, 1] and state["ice_rich"][0, 2]
 
 
 def test_rich_outer_disk_makes_a_migrating_giant():
+    from stellarforge.planets import ida_lin_2013 as vii
     state = population.evolve(_disk([[8.0]], f_g0=3.0, feh=0.3, tau=5e6), 1.0)
     m = state["core_mearth"][0, 0] + state["env_mearth"][0, 0]
-    assert state["env_mearth"][0, 0] / m > 0.5 and m > 100
-    assert m <= growth.gap_opening_mass(state["a_form_au"][0, 0])   # eq. 38 truncates the gas
-    assert state["a_au"][0, 0] < 8.0                                 # and it migrated inwards
+    assert state["env_mearth"][0, 0] / m > 0.5 and m > 50
+    assert m <= vii.thermal_gap_mass(state["a_form_au"][0, 0])   # Paper VII eq. 28 ends the gas
+    assert state["a_au"][0, 0] < 8.0                             # and it migrated inwards
+
+
+def test_paper_vii_gas_accretion():
+    from stellarforge.planets import ida_lin_2013 as vii
+    assert vii.disk_accretion_rate(1.0) == pytest.approx(3e-9 * 332946.0487)      # eq. 26
+    assert vii.viscous_gap_mass(1.0) == 30.0 and vii.thermal_gap_mass(1.0) == 950.0
+    assert vii.gap_factor(10.0, 1.0) == 1.0 and vii.gap_factor(950.0, 1.0) == 0.0  # eq. 31
+    assert vii.gap_factor(np.sqrt(30 * 950), 1.0) == pytest.approx(0.5)            # log-midpoint
+    # eq. 22: an Earth mass at 1 AU migrates in 1.5 Myr for C1 = 0.1, f_g = 1
+    assert -1.0 / vii.type1_rate(1.0, 1.0, 1.0) == pytest.approx(1.5e6)
 
 
 def test_population_is_reproducible_and_step_converged():
@@ -138,18 +149,43 @@ def test_population_is_reproducible_and_step_converged():
     def giant_hosts(cell):
         p = cell["planets"]
         return np.unique(p["system"][p["class"] == "gas giant"]).size / cell["n_systems"]
-    coarse = giant_hosts(population.run_cell(1.0, 0.0, 1500, seed=5, steps_per_dex=40))
-    fine = giant_hosts(population.run_cell(1.0, 0.0, 1500, seed=5, steps_per_dex=200))
-    assert abs(coarse - fine) < 0.02
+    # The shipped step count against a finer one; the gap taper read at each step's start makes
+    # the radial-velocity giant share drift about 0.01 between them (0.02 from 40 steps)
+    coarse = population.run_cell(1.0, 0.0, 1500, seed=5)
+    fine = population.run_cell(1.0, 0.0, 1500, seed=5, steps_per_dex=250)
+    assert abs(giant_hosts(coarse) - giant_hosts(fine)) < 0.02
+
+    def twin(cell):
+        return surveys.survey_stats(cell["planets"], 1500, 1.0, seed=5)["rv_giant_share"]
+    assert abs(twin(coarse) - twin(fine)) < 0.02
 
 
-def test_inner_edge_merge_keeps_the_mass():
-    state = {"core_mearth": np.array([[1.0, 2.0, 3.0]]), "env_mearth": np.array([[0.0, 5.0, 0.0]]),
-             "a_au": np.array([[0.04, 0.04, 1.0]]), "a_form_au": np.array([[0.5, 4.0, 1.0]]),
-             "ice_rich": np.array([[False, True, False]]), "a_ice_au": 2.7}
-    out = population.merge_inner_edge(state)
-    assert out["core_mearth"].sum() == 6.0 and out["env_mearth"].sum() == 5.0
-    assert out["core_mearth"][0, 1] == 3.0 and out["ice_rich"][0, 1]   # the heavier one stays
+def test_convoys_keep_resonant_spacing():
+    state = population.evolve(_disk([[0.3, 0.5, 0.8, 1.2, 2.0, 3.5]], f_g0=3.0, tau=5e6), 1.0)
+    m_all = state["core_mearth"][0] + state["env_mearth"][0]
+    order = np.argsort(state["a_au"][0][m_all > 0])
+    a, m = state["a_au"][0][m_all > 0][order], m_all[m_all > 0][order]
+    assert a[0] >= migration.INNER_EDGE_AU
+    r_h = ((m[:-1] + m[1:]) / (3 * 332946.0487)) ** (1 / 3) * a[:-1]
+    assert np.all(np.diff(a) >= population.B_TRAP_HILL * r_h * (1 - 1e-9))  # 5 Hill radii apart
+
+
+def test_post_gas_impacts():
+    from stellarforge.planets import impacts
+    # eq. 25's definition gives about 0.4 M⊕ where its closed form says 0.52 (≃)
+    assert impacts.embryo_isolation_mass(10.0, 1.0, 1.0) == pytest.approx(0.4, abs=0.08)
+    # Zhou et al.: crossing time rises steeply with spacing in Hill radii
+    close, wide = (impacts.crossing_time_yr(1.0, 1.0, 1.0, 1.0 + d, 0.0, 0.0) for d in (0.03, 0.25))
+    assert close < 1e5 and wide > 1e9
+    # eq. 19: orbital energy conserved; eq. 20: opposed equal eccentricities cancel
+    a, e = impacts.merged_orbit(1.0, 1.0, 1.0, 2.0, 0.1, 0.1, np.pi)
+    assert 2 / a == pytest.approx(1 / 1.0 + 1 / 2.0) and e == pytest.approx(0.0, abs=1e-12)
+    disks = _disk([[0.3, 0.32, 0.34, 0.36, 5.0]], f_g0=2.0, tau=2e6)
+    gas = population.evolve(disks, 1.0)
+    after = population.after_gas(gas, disks, 1.0, np.random.default_rng(1))
+    before_m, after_m = (s["core_mearth"] + s["env_mearth"] for s in (gas, after))
+    assert after_m.sum() >= before_m.sum() * (1 - 1e-12)                    # nothing is lost
+    assert (after_m > 0).sum() < (before_m > 0).sum()                       # the packed ones merged
 
 
 def test_giants_need_metals():
@@ -170,3 +206,18 @@ def test_chen_kipping_radii():
     assert radius.radius_rearth(317.83) == pytest.approx(13.8, rel=0.01)
     with pytest.raises(ValueError):
         radius.radius_rearth(0.0)
+
+
+def test_survey_cuts():
+    from stellarforge.planets import surveys
+    assert surveys.period_days(1.0, 1.0) == pytest.approx(365.25)
+    planets = {"system": np.array([0, 0, 1, 2]), "a_au": np.array([1.0, 0.2, 0.2, 0.01]),
+               "mass_mearth": np.array([300.0, 3.0, 300.0, 300.0]),
+               "radius_rearth": np.array([13.0, 1.3, 13.0, 13.0]), "f_env": np.array([0.9, 0, 0.1, 0.9])}
+    s = surveys.survey_stats(planets, 4, 1.0, sin_i=np.ones(4))
+    assert surveys.survey_stats(planets, 4, 1.0)["rv_giant_share"] <= 0.5   # M sin i ≤ M
+    assert s["rv_giant_share"] == 0.5                   # systems 0 and 1; system 2's is at P < 2 d
+    assert s["rv_giant_share_gas_giants"] == 0.25        # only system 0's has an envelope
+    assert s["warm_super_earths_per_100"] == 25.0        # 3 M⊕ at 0.2 AU (33 d), 1.3 R⊕
+    assert surveys.slope([0, 1], [1, 100]) == pytest.approx(2.0)
+    assert np.isnan(surveys.slope([0, 1], [0, 1]))

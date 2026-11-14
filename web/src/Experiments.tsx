@@ -9,7 +9,7 @@ import type { Experiment, Meta, Panel, PanelRow, Provenance } from "./data/types
 
 const DATA = `${import.meta.env.BASE_URL}data/experiments/`;
 /** The six Phase 3 experiments and Phase 4's zero-age extension, in the order the tabs show them. */
-const NAMES = ["lifetime-map", "full-life-map", "remnant-map", "remnant-mass-curves", "population", "sun-metallicities", "zams-extension", "planet-grid", "planet-sensitivity"];
+const NAMES = ["lifetime-map", "full-life-map", "remnant-map", "remnant-mass-curves", "population", "sun-metallicities", "zams-extension", "planet-grid", "planet-sensitivity", "planet-surveys"];
 
 // Display colours for words that stand in for numbers
 const WORD_COLOURS: Record<string, string> = {

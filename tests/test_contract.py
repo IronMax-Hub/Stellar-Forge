@@ -173,12 +173,20 @@ def test_planet_export_matches_fixture_shape(tmp_path, monkeypatch):
     monkeypatch.setattr(experiments, "PLANET_FEHS", (0.0, 0.3))
     monkeypatch.setattr(experiments, "planet_grid_cells", lambda: ((cells[0],), (cells[1],)))
     monkeypatch.setattr(experiments, "planet_sensitivity_cells", lambda: fake_runs)
+    survey_cells = tuple(experiments._planet_stats((1.0, f, 60, 4, {"survey_only": True}))
+                         for f in experiments.SURVEY_FEHS)
+    assert "samples" not in survey_cells[0]
+    monkeypatch.setattr(experiments, "planet_survey_cells", lambda: survey_cells)
     monkeypatch.setattr(experiments, "WEB_PLANETS", tmp_path)
     meta = export.build_meta(dataset="test", models={"planets": "test"}, inputs={"feh": 0.0},
                              reference_keys=["IdaLin2004a"], seed=3)
     population = json.loads(experiments.export_planets(meta).read_text())
     assert_shape(population, FIXTURE)
-    assert [c["label"] for c in population["population"]["conclusions"][:2]] == ["prediction"] * 2
+    labels = [c["label"] for c in population["population"]["conclusions"]]
+    assert labels[:2] == ["prediction"] * 2
+    assert labels[-7:] == ["observational constraint"] * 7       # the survey checks
+    surveys_doc = experiments.planet_surveys({})
+    assert len(surveys_doc["panels"][0]["rows"]) == 7
     systems = json.loads((tmp_path / "systems_001.json").read_text())
     assert_shape(systems, FIXTURE)
     assert len(systems["systems"]["systems"]) == 60
