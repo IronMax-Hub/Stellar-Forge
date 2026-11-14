@@ -66,7 +66,8 @@ describe("data contract", () => {
     delete empty.profiles;
     delete empty.population;
     delete empty.systems;
-    expect(() => parseDocument(empty)).toThrow(/grid, an experiment, a polytropes, a profiles, a population or a systems/);
+    delete empty.timeline;
+    expect(() => parseDocument(empty)).toThrow(/grid, an experiment, a polytropes, a profiles, a population, a systems or a timeline/);
   });
 
   it("reads zero-age profiles, allows no MIST star, and rejects uneven arrays", () => {
@@ -99,5 +100,21 @@ describe("data contract", () => {
     const odd = fixture();
     ((odd.systems.systems as { planets: Record<string, unknown>[] }[])[0].planets[0]).class = "hot Jupiter";
     expect(() => parseDocument(odd)).toThrow(/planets\[0\]\.class/);
+  });
+
+  it("reads a timeline, allows undefined habitable-zone edges, and rejects bad orbit knots or events", () => {
+    const planet = (raw: Raw) => ((raw.timeline.systems as { planets: Record<string, unknown>[] }[])[0].planets[0]);
+    const tl = parseDocument(fixture()).timeline!;
+    expect(tl.star.hz_inner_au[2]).toBeNull();
+    expect(tl.systems[0].planets[0].events[0].kind).toBe("formed");
+    const late = fixture();
+    planet(late).orbit_sample = [0, 1, 3];
+    expect(() => parseDocument(late)).toThrow(/orbit_sample/);
+    const odd = fixture();
+    (planet(odd).events as { kind: string }[])[0].kind = "teleported";
+    expect(() => parseDocument(odd)).toThrow(/events\[0\]\.kind/);
+    const uneven = fixture();
+    (uneven.timeline.star as { phase: string[] }).phase.pop();
+    expect(() => parseDocument(uneven)).toThrow(/timeline\.star\.phase/);
   });
 });

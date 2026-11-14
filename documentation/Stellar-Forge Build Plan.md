@@ -1,10 +1,27 @@
 # Stellar-Forge Build Plan
 
-Nov 11, 2026 · @Mayukh · revision 4: MIST coverage from the downloaded archives
+Nov 15, 2026 · @Mayukh · revision 6: Phase 7 revised for stale data, the 3D system view and the prescription toggle
 
 Stellar-Forge is built in nine phases (0–8), entirely on this machine: Python computes every result from published physics, a TypeScript observatory only displays it, and one shared JSON fixture keeps the two in step. The first visible milestone is the Sun's track on an HR diagram in the browser at the end of Phase 1; your questions on lifetimes, remnants and planets are answered by Phases 3, 5 and 6. Every reference and 57 specific claims were checked against their sources on 6 November 2026 — see [Source checks](Source%20checks.md).
 
 ## Revision history
+
+**Revision 6 — Phase 7 revised (15 November 2026)**
+
+- **Data freshness:** `make all-data`, `make data-status` and a start-up banner, after 55 data files were found on old schema versions.
+- **3D system view:** built in Phase 7 on the copied Aion Forge view, after Phase 6.1's eccentric orbits.
+- **Prescription toggle:** needs both Fryer prescriptions exported per track, a contract change.
+- **Clean-up:** the provisional `aionStubs.ts` types go, and copied files no view uses are removed.
+- **Checks:** four Validation rows for Phase 7. Browsers: Chrome 157 (installed now), Firefox 158.
+- **Effort:** Phase 7 is 7–9 days; the total is 54–72 working days, up from 52–70.
+
+**Revision 5 — Phase 6 phase-lets (15 November 2026)**
+
+- **Phase 6.1, eccentric orbits and drag near the giant (3–4 days):** Phase 5's eccentricities are exported instead of dropped; tides use Mustill & Villaver's eccentric equations; planets are engulfed at pericentre; Schröder & Connon Smith's chromospheric drag is added.
+- **Phase 6.2, after the giant (2–3 days):** the hot post-AGB star and the white dwarf add their ultraviolet; timelines continue along Phase 2's Bédard et al. cooling sequences; core collapse uses eccentric orbits and Hobbs et al. kicks, shown in a new massive-star reference case.
+- **Why:** these four effects were left out when Phase 6 was built; [Phase 6 physics gaps plan](Phase%206%20physics%20gaps%20plan.md) says what each changes and how it is checked.
+- **Effort:** 52–70 working days, up from 47–63.
+- **Sources:** Ostriker 1999, Villaver & Livio 2007 and Duncan & Lissauer 1998 are added to the references and were checked in Source checks on 15 November 2026 (Duncan & Lissauer through Mustill & Villaver only; Villaver & Livio's target is reworded by planet mass).
 
 **Revision 4 — MIST coverage from the downloaded archives (11 November 2026)**
 
@@ -52,7 +69,9 @@ flowchart TD
     P4["Phase 4 · Structure lab · 6–9 days"]
     P5["Phase 5 · Planet formation · 11–15 days · answers Q2"]
     P6["Phase 6 · Planet fates · 7–9 days · answers Q3"]
-    P7["Phase 7 · Observatory web app · 5–7 days"]
+    P61["Phase 6.1 · Eccentric orbits, drag · 3–4 days"]
+    P62["Phase 6.2 · Remnant UV, kicks · 2–3 days"]
+    P7["Phase 7 · Observatory web app · 7–9 days"]
     P8["Phase 8 (optional) · Local API · 2–4 days"]
     P0 --> P1 --> P2 --> P3
     P0 --> P5
@@ -62,13 +81,15 @@ flowchart TD
     P5 --> P6
     P3 --> P7
     P4 --> P7
+    P6 --> P61 --> P62
     P6 --> P7
+    P62 -.-> P7
     P7 -.-> P8
 ```
 
 Q1 = lifetimes and remnants against mass and metallicity · Q2 = how many planets form, of which types · Q3 = what happens to them as the star ages.
 
-Phases 1, 4 and 5 can each start once Phase 0 is done; Phase 4's final checks wait for Phase 1, and Phase 6 waits for Phases 2 and 5. The 47–63 days leave out the optional Phase 8. They are focused-effort estimates, not deadlines: Phase 0's benchmark resets them, and validation is never cut to meet them.
+Phases 1, 4 and 5 can each start once Phase 0 is done; Phase 4's final checks wait for Phase 1, and Phase 6 waits for Phases 2 and 5; the phase-lets 6.1 and 6.2 follow Phase 6 in order. The 54–72 days leave out the optional Phase 8. They are focused-effort estimates, not deadlines: Phase 0's benchmark resets them, and validation is never cut to meet them.
 
 ## Ground rules
 
@@ -97,7 +118,7 @@ This is a 4-core desktop with 15 GiB of RAM, 44 GB of free SSD space and a 2009-
 | Python | 3.10.12 with NumPy 2.0.1, SciPy 1.15.3, pandas 2.3.3, Matplotlib 3.9.1 | 3.10 reached end of life in October 2026, so the project gets its own Python 3.12 environment |
 | Node | Node 22.14.0, npm 11.6.1 | Recent enough for the Vite, React and Three.js stack copied from Aion Forge |
 | Other tools | gcc 11.4, make, git 2.34, gh 2.102, Docker 29.8, pdftotext; no gfortran, no uv | uv is installed in Phase 0; gfortran is not needed because MESA is out of scope |
-| Browsers | Chrome 153, Firefox 158 | The web app is tested in both |
+| Browsers | Chrome 157, Firefox 158 | The web app is tested in both |
 | Network | MIST data server reachable; one archive per metallicity, 76–107 MB each as MIST lists them | The rotating v1.2 grid is about 1.5 GB to download |
 
 Checked on 6 November 2026 with `lscpu`, `free`, `df`, `lsblk`, `lspci`, a WebGL probe and size-only requests to the MIST server.
@@ -669,21 +690,93 @@ The plan models single stars. The binary stability limits ported from Aion Forge
 
 **Effort:** 7–9 days.
 
+**Built 14 November 2026 (schema version 10), branch `phase-6-coevolution`:**
+
+- **Physics.** `planets/coevolution.py` steps every planet of one star along its MIST track together, on the EEP grid refined so no step changes log R★ by more than 0.01, ln age by 0.05 or log M★ by 0.002 (about 3,000 steps for the Sun). Each step widens orbits by M★ (flagging any step where (|Ṁ★|/M★)(P/2π) > 0.01), applies Mustill & Villaver's (2012) eqs. 1, 4 and 5 for a circular orbit after the main sequence (M_env = M★ − M_He-core, R_env = R★, their fiducial η_F = 3, f' = 9/2, γ_F = 2), engulfs a planet whose orbit reaches R★, adds the XUV dose, strips envelopes by Owen & Wu's eq. 19 with their eq. 14–17 radius (`planets/escape.py`), re-applies the class rules and tracks the Kopparapu et al. 2013 zone (coefficients read from the paper's Table 3). A stay in or out of the zone shorter than 10 Myr is not reported: a giant's luminosity jumps swing the zone's edge back and forth across an orbit.
+- **Ports.** The XUV history (`planets/xuv.py`) and the shoreline label (`planets/shoreline.py`) are ported from Aion Forge, with L_bol from MIST; see PROVENANCE.md.
+- **Tides only after the main sequence.** Mustill & Villaver's approximation M_env ≈ M★ − M_core would overstate the tide on a main-sequence star, whose convective envelope is thin; main-sequence tides on hot Jupiters are therefore left out.
+- **Export.** `make planets` (or `python -m stellarforge.experiments timelines --export`, 52 s on 4 workers) writes `planets/timeline_<nnn>.json` for each cell's 200 sample systems and `planets/solar_system.json`, about 90 MB in all. The contract gains a `timeline` block (the star at 120 exported ages with its habitable-zone edges, and each planet's orbit as knots, events, fate, closest approach, deciding phase, shoreline label, XUV dose and flags) and each population cell a `timeline_file`.
+- **View.** **System Timeline** opens on the Solar System: a 2D top-down map on one log scale for star and orbits, so the swelling star visibly swallows orbits, with the habitable zone as a band, a play button and age scrubber, an event log whose entries jump to their age, and a fates table. Every Phase 5 sample system opens from the Planets view.
+- **Not done.** Planet eccentricity (all orbits circular), drag near the giant's surface, the hot post-AGB star's and white dwarf's own ultraviolet and neutron-star kicks (flagged where a planet stays bound) are planned as Phases 6.1 and 6.2 below. The optional 3D system view waits for Phase 7.
+- **Done when:** every sample system has a timeline and System Timeline works. The Solar System case passes for every planet's fate but not for the widening factor (1.852× against 1.76–1.84×), so Phase 6's "Done when" is **not fully met**; see Validation.
+
+## Phase 6.1 — Eccentric orbits and drag near the giant
+
+**Goal:** planets on their real oval orbits, with the friction that acts just outside a giant's surface, so fates near the edge (Mars among them) are decided as the sources decide them. Details, reasons and limits: [Phase 6 physics gaps plan](Phase%206%20physics%20gaps%20plan.md).
+
+| Process | Rule | Source |
+| --- | --- | --- |
+| Eccentricities at the start | Phase 5's own, from the giant-impact stage (Rayleigh about the Hill eccentricity, excited to the escape eccentricity), now exported; the Solar System's measured values | Ida & Lin 2010, Appendix steps 1, 3 and 7 |
+| Tides | ȧ and ė with the e² terms (f₁, f₂, f₃), fiducial parameters as in Phase 6 | Mustill & Villaver 2012 eqs. 1–2; Zahn 1977 |
+| Slow mass loss | a M★ constant and e kept; the Ψ > 0.01 flag stays | Veras et al. 2011 |
+| Engulfment | at pericentre, a(1 − e) ≤ R★ | Mustill & Villaver 2012 |
+| Drag outside the photosphere | F_d = λ_d 4πρ (G M_p / c_s)², λ_d = 3 (an upper bound: Ostriker's I/M² is nearer 1 at Mach 3–4), c_s = 8 km/s, chromospheric density scaled with surface gravity from today's Sun | Schröder & Connon Smith 2008 §4.2; Ostriker 1999 |
+| Flux for the habitable zone, dose and escape | orbit-averaged, ∝ 1/[a² (1 − e²)^½] | flux-averaging identity |
+
+**Steps**
+
+1. `planets/population.py` returns each planet's eccentricity; add the rest of the scattered group (Appendix step 4) if it fits in a day, else flag the eccentricities as a lower bound.
+2. `planets/coevolution.py` integrates (a, e) together inside each step, engulfs at pericentre and adds drag.
+3. Contract (schema version 11): `e` on `systems` planets; `orbit_e` knots, pericentre and apocentre on `timeline` planets.
+4. System Timeline draws ellipses through the exported pericentre and apocentre; the fates table shows e.
+
+**Checks** (numbers in Validation): the e = 0 limit; tides circularise; slow mass loss keeps e; drag by hand; innermost AGB survivors; the Solar System re-run.
+
+**Done when:** every exported planet carries e, the checks pass, and the Solar System case is re-run and reported.
+
+**Effort:** 3–4 days.
+
+---
+
+## Phase 6.2 — After the giant: hot remnant ultraviolet and core-collapse survival
+
+**Goal:** follow survivors through the hot post-AGB star and the white dwarf's cooling with the ultraviolet they actually receive, and give planets of massive stars a survival probability that includes eccentric orbits and neutron-star kicks.
+
+| Process | Rule | Source |
+| --- | --- | --- |
+| XUV after the main sequence | the larger of the held activity value and L★ × the blackbody share below 100 nm (already in `planets/xuv.py`) | Aion Forge's port; Planck's law |
+| After the MIST track | the white-dwarf cooling sequence Phase 2 already reads (L, Teff, radius against cooling age), to 13.8 Gyr or a 10 Gyr cooling age | Bédard et al. 2020 |
+| Core collapse | Monte Carlo over orbital position and kick: instant mass loss, isotropic Maxwellian kick with σ = 265 km/s, bound if the new orbital energy is negative; kicks scaled by (1 − f_fb), none for direct collapse into a black hole | Hills 1983; Hobbs et al. 2005; Fryer et al. 2012 eq. 21 |
+
+**Steps**
+
+1. `planets/xuv.py`: the post-main-sequence rule.
+2. `planets/coevolution.py`: continue each timeline along the cooling sequence; replace `supernova_unbinds` by the Monte Carlo (kept as its zero-kick check).
+3. A new reference case, **planets around massive stars**: Earth- and Jupiter-mass test planets at 0.5–50 AU around 9–25 M☉ grid stars, survival probability against orbit, in the Experiments view.
+4. Contract: a per-age `source` on the `timeline` star series; a nullable `supernova_survival` on planets.
+
+**Checks** (numbers in Validation): the join to the cooling sequence; the main-sequence XUV unchanged; Jovian envelopes in the hot post-AGB phase; the zero-kick eccentric case against Hills's rule; the kick distribution's mean.
+
+**Done when:** every white-dwarf timeline continues along its cooling sequence, the massive-star case runs, and the checks are reported.
+
+**Effort:** 2–3 days.
+
+---
+
 ## Phase 7 — The observatory web app
 
-**Goal:** one local web app that ties every view together, runs smoothly on the G210, and shows where every number came from. Each view is built in its own phase; this phase connects and polishes them.
+**Goal:** one local web app that ties every view together, runs smoothly on the G210, and shows where every number came from. Each view is built in its own phase; this phase connects and polishes them, and makes sure the data the views read is current.
 
 | View | Shows | Built in | Drawing |
 | --- | --- | --- | --- |
 | Star Builder | HR track, the star, its phases | Phase 1 | 2D SVG plus a light 3D sphere |
 | Remnants | white-dwarf cooling, neutron stars, black holes | Phase 2 | cards plus black-hole lensing (3D, low quality) |
-| Experiments | lifetime and remnant maps, remnant-mass curves, IMF shares | Phase 3 | 2D |
+| Experiments | lifetime and remnant maps, remnant-mass curves, IMF shares; the massive-star planet case from Phase 6.2 | Phases 3, 6.2 | 2D |
 | Inside the Star | profiles, cross-section, polytropes | Phase 4 | 2D |
 | Planets | planet mass–distance diagram, occurrence against [Fe/H], calibration labels | Phase 5 | 2D |
-| System Timeline | orbits, habitable zone and events over time | Phase 6 | 2D, optional 3D system view |
+| System Timeline | orbits, habitable zone and events over time, into the white dwarf's cooling | Phases 6, 6.1, 6.2 | 2D; optional 3D system view added here |
 | Provenance panel | for any value: dataset, model, assumptions, parameters, units, validity flags and label (published, interpolated, substituted, derived, predicted) | Phase 7 | text |
 | Prescription toggle | the same star under alternative prescriptions, such as Fryer rapid against delayed | Phase 7 | 2D |
 | Physics Chapters | how each model works, with its citations | all phases | text |
+
+**Already in place (15 November 2026).** The views are tabs in one app; Planets opens a system in System Timeline; Star Builder and Experiments show provenance tags beside values; the black-hole view is in use. Copied from Aion Forge but not yet used: the 3D system view (`rendering/system/`) and the planet globes (`rendering/planet/`). `rendering/aionStubs.ts` still holds the provisional types for all of them.
+
+**What revision 6 adds, and why.**
+
+- **Data freshness.** On 15 November 2026, after two schema raises, 55 of 300 files in `web/public/data` were still on schema 8 or 9, because only `make planets` had been rerun. Each view failed only when it opened its own file. Phase 7 makes stale data visible before a view opens it.
+- **The 3D system view** was deferred here by Phase 6. It is worth building after Phase 6.1, since it can then draw eccentric orbits.
+- **The stubs** are replaced by contract types, and copied files no view uses are removed rather than kept.
+- **The prescription toggle needs data that does not exist yet:** each track exports only one Fryer prescription. Python must export both, which is a contract change.
 
 **Performance budget for this GPU**
 
@@ -695,17 +788,27 @@ The plan models single stars. The binary stability limits ported from Aion Forge
 
 **Steps**
 
-1. Add navigation, shared state (current star, current time) and links between views.
-2. Build the provenance panel and the prescription toggle from the `meta` and per-value labels already in the data.
-3. Write the Physics Chapters text new for Stellar-Forge, in the structure of Aion Forge's chapters.
-4. Add a frame-time read-out in development mode.
-5. Check every view by hand in Chrome 153 and Firefox 158.
+1. **Data freshness:**
+   - `make all-data` reruns `export`, `experiments`, `extension` and `planets` in that order.
+   - `make data-status` lists every file in `web/public/data` whose `schema_version` or code hash differs from the current code, with the make target that rebuilds it.
+   - `make check` runs it as a warning, since the data is gitignored and not every machine has it.
+   - At start-up the app reads one small index file written by the exports. It lists every data file with its schema version, and one banner names any stale file.
+2. **Navigation and shared state:** the current star (mass, [Fe/H]) and current time are shared between Star Builder, Inside the Star, Planets and System Timeline, with links between them.
+3. **Provenance and prescriptions:** the provenance panel is built from the `meta` and per-value labels already in the data. For the toggle, `export.py` writes both Fryer prescriptions per track (a contract change; raise `schema_version`), and the toggle switches between them.
+4. **The 3D system view in System Timeline** (optional, behind the 3D toggle):
+   - It is the copied `rendering/system/` view, fed with Python's orbit knots and, after Phase 6.1, its eccentricities.
+   - Positions along each orbit are animation only (the Kepler solve is shader-side drawing, as for Aion Forge); every number shown still comes from the JSON.
+   - The 2D map stays the default.
+5. **Stubs:** replace `aionStubs.ts` with types from `data/types.ts`. Delete the copied planet globes unless a phase by then exports what they need (surface and atmosphere data), and record the removal in `PROVENANCE.md`.
+6. **Physics Chapters:** written new for Stellar-Forge, in the structure of Aion Forge's chapters, including Phase 6–6.2's planet fates.
+7. **Frame-time read-out** in development mode.
+8. **Browser check:** every view by hand in Chrome 157 and Firefox 158, also at 375 px width.
 
 **Deferred:** a discovery catalogue of notable results (a pair-instability outcome, a surviving planetary system) waits until the core pipeline works end to end.
 
-**Done when:** every view is reachable, every displayed value opens its provenance, the first load takes under 3 seconds locally, the 3D toggle works, and both browsers pass.
+**Done when:** every view is reachable; every displayed value opens its provenance; `make data-status` is clean after `make all-data`; the first load takes under 3 seconds locally; the 3D toggle works, including the system view; and both browsers pass (Validation rows 7).
 
-**Effort:** 5–7 days here, on top of the view work inside Phases 1–6.
+**Effort:** 7–9 days here, up from 5–7 (data freshness ½ day, the system view 1–1½ days, the stubs ½ day), on top of the view work inside Phases 1–6.2.
 
 ## Phase 8 (optional) — A local API for custom runs
 
@@ -755,8 +858,8 @@ Left out: `life.ts` and the city-light and orbital-shell shaders, which belong t
 | Aion Forge source (under `frontend/src/simulation/`) | Python module | What it computes | Published basis |
 | --- | --- | --- | --- |
 | `star.ts`: `kroupaMass`, `KROUPA_IMF` | `stellarforge/experiments.py` (`kroupa_sample`) | random star masses | Kroupa 2001 |
-| `binary.ts`: `S_TYPE_LIMIT`, `P_TYPE_LIMIT` | `stellarforge/binary.py` | stable planet orbits in binaries | Holman & Wiegert 1999 |
-| `star.ts`: the XUV and activity block | `stellarforge/activity.py` | a star's high-energy output over time | Wright et al. 2011 (X-ray saturation, 10^−3.13 of the star's light); Ribas et al. 2005 (1–1,200 Å decay, exponent −1.23) |
+| `binary.ts`: `S_TYPE_LIMIT`, `P_TYPE_LIMIT` | `stellarforge/binary.py` (not ported: the plan models single stars, see Phase 6) | stable planet orbits in binaries | Holman & Wiegert 1999 |
+| `star.ts`: the XUV and activity block | `stellarforge/planets/xuv.py` (built 14 Nov 2026) | a star's high-energy output over time | Wright et al. 2011 (X-ray saturation, 10^−3.13 of the star's light); Ribas et al. 2005 (1–1,200 Å decay, exponent −1.23) |
 | `atmosphericEscape.ts`: the shoreline part only | `stellarforge/planets/shoreline.py` | the kept-or-lost atmosphere label | Zahnle & Catling 2017 for the v_esc⁴ slope; the scale factor K = 10 and the retention curve are Aion Forge's choices, labelled as such |
 | `planetBasics.ts`: `MASS_RADIUS` | `stellarforge/planets/radius.py` | planet radius from mass | Chen & Kipping 2017 |
 | `star.ts`: `temperatureToColor` | `stellarforge/colour.py` | a star's display colour | a standard blackbody-colour approximation |
@@ -777,9 +880,9 @@ Passing tests does not by itself make the project scientifically validated. Whet
 
 | Phase | Kind | Check | Target | Source | Status |
 | --- | --- | --- | --- | --- | --- |
-| All | Contract | Data contract | pytest and Vitest both pass on `contract/fixture.json` at every commit | Ground rule 3 | **Passing (every commit since Phase 0):** `tests/test_contract.py` and `web/src/__tests__/contract.test.ts` run in `make check`; schema version 9 since the scientific audit (14 Nov 2026) |
+| All | Contract | Data contract | pytest and Vitest both pass on `contract/fixture.json` at every commit | Ground rule 3 | **Passing (every commit since Phase 0):** `tests/test_contract.py` and `web/src/__tests__/contract.test.ts` run in `make check`; schema version 10 since Phase 6 (14 Nov 2026) |
 | All | Contract | Aion Forge untouched | checksum manifests before and after each copy are identical | Ground rule 4 | **Passed (11 Nov 2026):** SHA-256 manifests of all 1,016 Aion Forge files before and after the copy are identical (`PROVENANCE.md`) |
-| 0 | Numerical | Python ports of Aion Forge models | match the expected values in Aion Forge's tests | Aion Forge tests, read as text | **Partly done (14 Nov 2026):** the ports made so far are checked against their published forms rather than Aion Forge's test values: Kroupa sampling against the IMF's integrals (`tests/test_experiments.py`), star colour (`tests/test_evolution.py`) and Chen & Kipping radii against the paper's Table 1 (`tests/test_planets.py`). The shoreline, activity and binary ports come in Phase 6 |
+| 0 | Numerical | Python ports of Aion Forge models | match the expected values in Aion Forge's tests | Aion Forge tests, read as text | **Partly done (14 Nov 2026):** the ports made so far are checked against their published forms rather than Aion Forge's test values: Kroupa sampling against the IMF's integrals (`tests/test_experiments.py`), star colour (`tests/test_evolution.py`) and Chen & Kipping radii against the paper's Table 1 (`tests/test_planets.py`). **Phase 6 (14 Nov 2026):** the activity port (`planets/xuv.py`) and the shoreline port (`planets/shoreline.py`) match the expected values in Aion Forge's `xuv.test.ts` and `atmosphericEscape.test.ts` (`tests/test_coevolution.py`). The binary port is not made: the plan models single stars |
 | 1 | Scientific | The Sun at 4.57 Gyr, from the released [Fe/H] 0 grid track | L = 0.95–1.12 L☉, R = 1.00 ± 0.05 R☉, Teff = 5712–5872 K. Re-aimed 11 Nov 2026 from L = 1.00 ± 0.05 L☉ and Teff = 5772 ± 60 K: MIST's released [Fe/H] 0 tracks are not its calibrated solar model (Choi et al. 2016 table 2 calibrates with Y_init 0.2612, Z_init 0.0150; the grid uses 0.2703 and 0.0143), so the upper limits allow that known offset and nothing below the Sun | Choi et al. 2016; Prša et al. 2016 | **Passed (11 Nov 2026):** L = 1.106 L☉, R = 1.025 R☉, Teff = 5848 K (`tests/test_evolution.py`). L and Teff sit near the re-aimed upper limits, so this checks MIST's released track rather than a solar calibration; a check against MIST's calibrated solar model at the original tolerances needs that model, which is not in the released archives (scientific audit) |
 | 1 | Numerical | Leave-one-out interpolation | main-sequence errors under 0.02 dex in log L and log Teff | the MIST grid itself | **Reported, target not met everywhere (11 Nov 2026):** median errors 0.004 dex (log L) along mass and 0.012 dex along [Fe/H]; up to 13.8 Gyr, 243 of 2,173 tracks (mass) and 596 of 1,808 ([Fe/H]) exceed 0.02 dex (rerun in Phase 2, after carbon-burning tracks without core masses stopped blending), mostly above 30 M☉ and across the 0.5 dex steps below [Fe/H] −2.0. **Widened 14 Nov 2026** to log R, the age each EEP is reached, the stages after the main sequence and the final masses: main-sequence log R and EEP ages stay near the log L figures (medians 0.002–0.015 dex); after the main sequence medians are 0.19 dex (mass) and 0.26 dex ([Fe/H]) in log L, and 0.18–0.25 dex in log R, while EEP ages stay within 0.01 dex; final masses and helium cores have medians of 0.2–0.4% (95th percentile ~5%), CO cores 1.1–1.4% (~12%). Late phases are where interpolated tracks are least reliable. Float32 storage, measured on the [Fe/H] 0 archive: at most 2.4×10⁻⁷ dex in log quantities and 6×10⁻⁸ relative in masses, negligible. See `documentation/data/MIST interpolation check.md` |
 | 1 | Scientific | Grid coverage | the inventory lists every track's ending, and every difference from Choi et al. 2016 is reported (known: low-metallicity tracks and 0.6–0.7 M☉ stars go further than the paper says) | Choi et al. 2016; MIST archives | **Passed (11 Nov 2026):** `documentation/data/MIST coverage.md`; differences are listed in Phase 1 |
@@ -801,11 +904,26 @@ Passing tests does not by itself make the project scientifically validated. Whet
 | 5 | Scientific | Solar twin | share with a 0.3–10 M_J planet (M sin i) at P = 2–2,000 d within a factor 1.5 of 10.5% (1 M☉, solar [Fe/H]) | Cumming et al. 2008 | **Failed (14 Nov 2026):** 20.8% (21.0% before the audit's fixes). Paper VII's own fiducial model gives 21% of solar-type stars a gas giant above 100 M⊕ at 0.5–5 AU, which the authors call much higher than radial-velocity surveys; C1 = 0.3 gives about 10% (probe) |
 | 5 | Scientific | Small planets | warm super-Earths (1.0–1.7 R⊕ by Chen & Kipping radius, 10–100 d) within a factor 2 of 20 per 100 stars at solar [Fe/H], slope within 2σ of β = −0.3 ± 0.2; warm sub-Neptunes (1.7–4.0 R⊕) rise by at least √2 from [Fe/H] −0.4 to +0.4 (survey: doubles) | Petigura et al. 2018; Buchhave et al. 2012 | **Failed (14 Nov 2026):** 9.2 warm super-Earths per 100 stars (needs 10), slope +0.21; sub-Neptunes rise by only 1.24 (9.5, +0.22 and 1.12 before the audit's fixes) |
 | 5 | Numerical | Planet classifier | every planet gets exactly one class; boundary values (f_env = 0.01 or 0.5, M_p = 2 or 10 M⊕) land on the documented side; Solar System test: Mercury to Mars terrestrial, Jupiter and Saturn gas giants, Uranus and Neptune ice giants | this plan; Solar System envelope fractions from Guillot 2005 | **Passed (14 Nov 2026):** 10,000 random planets each get one of the five classes; the boundary values land on the documented side; Mercury to Mars are terrestrial, Jupiter and Saturn gas giants, Uranus and Neptune ice giants at both ends of their published envelope ranges (`tests/test_planets.py`) |
-| 6 | Scientific | Solar System reference case | Mercury, Venus and Earth engulfed; Mars either way, with its closest approach and deciding phase reported; Jupiter and beyond survive on orbits widened 1.76–1.84× | Schröder & Connon Smith 2008; Mustill & Villaver 2012; Cummings et al. 2018 | Not run |
-| 6 | Scientific | Earth and the habitable zone | the inner edge, at 0.97–0.99 AU today, reaches 1 AU after about 0.16–0.56 Gyr | Kopparapu et al. 2013; Gough 1981, recomputed | Not run |
-| 6 | Numerical | Supernova survival | a circular orbit is unbound when more than half the mass is lost at once | energy argument; Hills 1983 | Not run |
-| 6 | Scientific | Cosmic shoreline label | Mercury falls on the airless side; Venus, Earth and Mars on the side with atmospheres | Zahnle & Catling 2017 | Not run |
-| 6 | Numerical | Energy-limited escape rate | matches Owen & Wu's eq. 19 for a hand-worked test planet | Owen & Wu 2017 | Not run |
+| 6 | Scientific | Solar System reference case | Mercury, Venus and Earth engulfed; Mars either way, with its closest approach and deciding phase reported; Jupiter and beyond survive on orbits widened 1.76–1.84× | Schröder & Connon Smith 2008; Mustill & Villaver 2012; Cummings et al. 2018 | **Partly passed (14 Nov 2026):** Mercury, Venus and Earth are engulfed on the red-giant branch (MIST's Sun reaches 173 R☉ there at 0.954 M☉; Earth's orbit has widened to 1.05 AU and tides pull it in). Mars survives, closest approach 1.15 R★ on the thermally pulsing AGB, where MIST's Sun reaches 352 R☉ (1.64 AU) at 0.738 M☉. Jupiter to Neptune survive, but widened **1.852×, outside 1.76–1.84**: MIST's white dwarf is 0.540 M☉, below the 0.544–0.569 M☉ the range assumes. Beside Schröder & Connon Smith: their 256 R☉ and 0.668 M☉ at the red-giant tip, MIST's 173 R☉ and 0.954 M☉ (MIST's Reimers η = 0.1 loses less mass there) |
+| 6 | Scientific | Earth and the habitable zone | the inner edge, at 0.97–0.99 AU today, reaches 1 AU after about 0.16–0.56 Gyr | Kopparapu et al. 2013; Gough 1981, recomputed | **Partly passed (14 Nov 2026):** MIST's Sun is already 1.106 L☉ at 4.57 Gyr (its released track's Y and Z; see the Sun check), so both inner edges are past 1 AU there (1.04 and 1.02 AU). Counted from the age at which MIST's Sun is 1 L☉ (3.42 Gyr), the water-loss edge reaches 1 AU after 0.21 Gyr (target about 0.16) and the runaway edge after 0.66 Gyr (target about 0.56): the same order, about 0.05–0.10 Gyr later, because MIST's Sun brightens more slowly there than Gough's law |
+| 6 | Numerical | Supernova survival | a circular orbit is unbound when more than half the mass is lost at once | energy argument; Hills 1983 | **Passed (14 Nov 2026):** `supernova_unbinds` unbinds at more than half the mass lost and keeps the orbit below (`tests/test_coevolution.py`). No planet-grid star ends in core collapse (0.2–1.5 M☉), so the rule is not exercised by the population |
+| 6 | Scientific | Cosmic shoreline label | Mercury falls on the airless side; Venus, Earth and Mars on the side with atmospheres | Zahnle & Catling 2017 | **Failed for Mars (14 Nov 2026):** Mercury crosses the shoreline (at 16 Myr), Venus and Earth keep their air, but Mars crosses at 3.0 Gyr (dose 0.39 Earth doses against 0.40 at v_esc 4.98 km/s). This follows from Aion Forge's K = 10, whose own test expects Mars airless; the check's expectation and the ported scale factor disagree, and K is left as Aion Forge set it rather than tuned to pass |
+| 6 | Numerical | Energy-limited escape rate | matches Owen & Wu's eq. 19 for a hand-worked test planet | Owen & Wu 2017 | **Passed (14 Nov 2026):** eq. 19 gives 4.44 × 10⁷ g/s for R_p = 2 R⊕, M_p = 5 M⊕, a = 1 AU, L_HE = 10⁻⁴ L☉, as worked by hand; the eq. 14–17 radius doubles at X₂ = 0.027 at eq. 17's reference values; a 6 M⊕ sub-Neptune with a 3% envelope at 0.05 AU around the Sun is stripped to a super-Earth, the same planet at 1 AU keeps its envelope |
+| 6.1 | Numerical | Eccentric tides, e = 0 limit | the eccentric equations give today's circular result | Mustill & Villaver 2012 eqs. 1–2 | Not run |
+| 6.1 | Numerical | Tides circularise | ė < 0 for every e > 0 with the fiducial parameters | Mustill & Villaver 2012 eq. 2 | Not run |
+| 6.1 | Numerical | Slow mass loss keeps e | e unchanged to 10⁻⁶ over a mass-loss-only track | Veras et al. 2011 | Not run |
+| 6.1 | Numerical | Chromospheric drag by hand | about 14 Myr angular-momentum decay time at 0.03 AU above the tip-RGB Sun, with their density, λ_d = 3 and c_s = 8 km/s | Schröder & Connon Smith 2008 §4.2 | Not run |
+| 6.1 | Scientific (goal) | Innermost AGB survivors | about 2 AU (1 M☉) and 10 AU (5 M☉); compared, not required, since their stellar models differ from MIST | Mustill & Villaver 2012 | Not run |
+| 6.1 | Scientific | Solar System with measured eccentricities | the Phase 6 reference case re-run; Mars's fate, closest approach and deciding phase reported | Phase 6 reference case | Not run |
+| 6.2 | Numerical | Join to the cooling sequence | log L and log Teff continuous at the join within 0.1 dex, or the gap reported | MIST v1.2; Bédard et al. 2020 | Not run |
+| 6.2 | Numerical | Main-sequence XUV unchanged | no XUV value changes on the main sequence or red-giant branch | `planets/xuv.py` | Not run |
+| 6.2 | Scientific (goal) | Giant planets in the hot post-AGB phase | around a 1 M☉ star, planets below 1 M_J starting inside about 3–5 AU are removed and those above 2 M_J survive down to about 3 AU; compared, not required, since energy-limited escape is outside Owen & Wu's range for giants | Villaver & Livio 2007 | Not run |
+| 6.2 | Numerical | Zero-kick eccentric supernova | Monte Carlo survival matches M_after / M_before > 1 − r / 2a averaged over the orbit | Hills 1983 | Not run |
+| 6.2 | Numerical | Kick distribution | mean kick 2σ√(2/π) ≈ 423 km/s | Hobbs et al. 2005 | Not run |
+| 7 | Contract | Data freshness | after `make all-data`, `make data-status` lists no file whose schema version or code hash differs; the start-up banner names a file deliberately left stale | — | Not run |
+| 7 | Contract | Both Fryer prescriptions | every core-collapse track carries rapid and delayed remnants in fixture and export; the toggle changes only remnant values | Fryer et al. 2012 | Not run |
+| 7 | Numerical | Frame time on the G210 | the 3D system view and the black-hole view hold 30 frames per second at 1280 × 720 or fall back as the budget says; the 2D views redraw in under 50 ms | — | Not run |
+| 7 | Numerical | First load | under 3 seconds locally, with only the slider's metallicity file loaded | — | Not run |
 
 ## Risks and fallbacks
 
@@ -908,6 +1026,9 @@ Every entry was checked against Crossref or OpenAlex on 6 November 2026, and the
 - Villaver, E. & Livio, M. 2009, ApJL 705, L81 · [doi](https://doi.org/10.1088/0004-637X/705/1/L81); Mustill, A. J. & Villaver, E. 2012, ApJ 761, 121 · [doi](https://doi.org/10.1088/0004-637X/761/2/121) — engulfment by giants
 - Schröder, K.-P. & Connon Smith, R. 2008, MNRAS 386, 155 — the Sun's future and Earth's fate · [doi](https://doi.org/10.1111/j.1365-2966.2008.13022.x)
 - Hills, J. G. 1983, ApJ 267, 322 — sudden mass loss and unbinding · [doi](https://doi.org/10.1086/160871)
+- Ostriker, E. C. 1999, ApJ 513, 252 · [doi](https://doi.org/10.1086/306858) — dynamical friction in a gaseous medium (Phase 6.1)
+- Villaver, E. & Livio, M. 2007, ApJ 661, 1192 · [doi](https://doi.org/10.1086/516746) — planets evaporated around post-AGB stars (Phase 6.2)
+- Duncan, M. J. & Lissauer, J. J. 1998, Icarus 134, 303 · [doi](https://doi.org/10.1006/icar.1998.5962) — stellar-wind drag on planets (Phase 6.1, reason it is left out; claim checked through Mustill & Villaver 2012)
 - Wolszczan, A. & Frail, D. A. 1992, Nature 355, 145 — the first pulsar planets · [doi](https://doi.org/10.1038/355145a0)
 - Owen, J. E. & Wu, Y. 2017, ApJ 847, 29 · [doi](https://doi.org/10.3847/1538-4357/aa890a); Fulton, B. J. et al. 2017, AJ 154, 109 · [doi](https://doi.org/10.3847/1538-3881/aa80eb) — the radius valley
 

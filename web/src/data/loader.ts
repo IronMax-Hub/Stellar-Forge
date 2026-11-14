@@ -3,8 +3,8 @@
 // change on the Python side fails loudly here instead of drawing nonsense.
 
 import { PROVENANCES, SCHEMA_VERSION, TRACK_ARRAYS } from "./types";
-import { CALIBRATIONS, CORES, PANEL_KINDS, PLANET_CLASSES, POLYTROPE_ARRAYS, PROFILE_ARRAYS, PROFILE_SCALARS, REMNANT_TYPES } from "./types";
-import type { Calibration, Cooling, Experiment, PlanetClass, PlanetResult, PlanetSystem, Population, PopulationCell, Systems, Grid, Meta, Panel, PanelKind, PanelRow, MistZams, Polytrope, Polytropes, Profile, Provenance, Reference, Remnant, RemnantType, Rgb, StellarDocument, Track, TrackArray } from "./types";
+import { CALIBRATIONS, CORES, EVENT_KINDS, FATES, PANEL_KINDS, PLANET_CLASSES, POLYTROPE_ARRAYS, PROFILE_ARRAYS, PROFILE_SCALARS, REMNANT_TYPES } from "./types";
+import type { Calibration, Cooling, Experiment, PlanetClass, PlanetResult, PlanetSystem, Population, PopulationCell, Systems, Timeline, TimelinePlanet, TimelineStar, Grid, Meta, Panel, PanelKind, PanelRow, MistZams, Polytrope, Polytropes, Profile, Provenance, Reference, Remnant, RemnantType, Rgb, StellarDocument, Track, TrackArray } from "./types";
 
 type Json = Record<string, unknown>;
 
@@ -313,6 +313,7 @@ function parseCell(value: unknown, path: string): PopulationCell {
     systems_with_count: list(c.systems_with_count, `${path}.systems_with_count`, integer),
     a_ice_au: number(c.a_ice_au, `${path}.a_ice_au`),
     systems_file: string(c.systems_file, `${path}.systems_file`),
+    timeline_file: string(c.timeline_file, `${path}.timeline_file`),
     flags: list(c.flags, `${path}.flags`, string),
   };
   if (cell.systems_with_count.reduce((a, b) => a + b, 0) !== cell.n_systems) fail(`${path}.systems_with_count`, "counts adding up to n_systems");
@@ -378,11 +379,84 @@ function parseSystems(value: unknown): Systems {
   };
 }
 
+function parseTimelineStar(value: unknown): TimelineStar {
+  const s = object(value, "timeline.star");
+  const nums = (k: string) => list(s[k], `timeline.star.${k}`, number);
+  const edge = (k: string) => list(s[k], `timeline.star.${k}`, (v, p) => nullable(v, p, number));
+  const star: TimelineStar = {
+    provenance: provenance(s.provenance, "timeline.star.provenance"),
+    method: string(s.method, "timeline.star.method"),
+    ending: string(s.ending, "timeline.star.ending"),
+    flags: list(s.flags, "timeline.star.flags", string),
+    age_yr: nums("age_yr"), mass_msun: nums("mass_msun"), radius_au: nums("radius_au"),
+    l_lsun: nums("l_lsun"), teff_k: nums("teff_k"),
+    hz_inner_au: edge("hz_inner_au"), hz_outer_au: edge("hz_outer_au"),
+    phase: list(s.phase, "timeline.star.phase", string),
+    rgb: list(s.rgb, "timeline.star.rgb", rgb),
+  };
+  const n = star.age_yr.length;
+  for (const k of ["mass_msun", "radius_au", "l_lsun", "teff_k", "hz_inner_au", "hz_outer_au", "phase", "rgb"] as const) {
+    if (star[k].length !== n) fail(`timeline.star.${k}`, `one entry per age (${n})`);
+  }
+  return star;
+}
+
+function parseTimelinePlanet(value: unknown, path: string, ages: number): TimelinePlanet {
+  const p = object(value, path);
+  const num = (k: string) => number(p[k], `${path}.${k}`);
+  const planet: TimelinePlanet = {
+    name: nullable(p.name, `${path}.name`, string),
+    class_at_formation: planetClass(p.class_at_formation, `${path}.class_at_formation`),
+    class_final: planetClass(p.class_final, `${path}.class_final`),
+    mass_mearth: num("mass_mearth"),
+    final_mass_mearth: num("final_mass_mearth"),
+    final_f_env: num("final_f_env"),
+    orbit_sample: list(p.orbit_sample, `${path}.orbit_sample`, integer),
+    orbit_a_au: list(p.orbit_a_au, `${path}.orbit_a_au`, number),
+    fate: oneOf(FATES)(p.fate, `${path}.fate`),
+    closest_approach_rstar: num("closest_approach_rstar"),
+    deciding_phase: string(p.deciding_phase, `${path}.deciding_phase`),
+    xuv_dose_earth: num("xuv_dose_earth"),
+    shoreline: oneOf(["kept", "lost"] as const)(p.shoreline, `${path}.shoreline`),
+    air_retained: num("air_retained"),
+    events: list(p.events, `${path}.events`, (v, q) => {
+      const e = object(v, q);
+      return { age_yr: number(e.age_yr, `${q}.age_yr`), kind: oneOf(EVENT_KINDS)(e.kind, `${q}.kind`), detail: string(e.detail, `${q}.detail`) };
+    }),
+    flags: list(p.flags, `${path}.flags`, string),
+    provenance: provenance(p.provenance, `${path}.provenance`),
+  };
+  const k = planet.orbit_sample;
+  if (k.length === 0 || k.length !== planet.orbit_a_au.length || k.some((s, i) => s < 0 || s >= ages || (i > 0 && s <= k[i - 1]))) {
+    fail(`${path}.orbit_sample`, "rising sample indices, one per orbit_a_au value");
+  }
+  return planet;
+}
+
+function parseTimeline(value: unknown): Timeline {
+  const t = object(value, "timeline");
+  const star = parseTimelineStar(t.star);
+  return {
+    name: string(t.name, "timeline.name"),
+    m_star_msun: number(t.m_star_msun, "timeline.m_star_msun"),
+    feh: number(t.feh, "timeline.feh"),
+    systems_file: nullable(t.systems_file, "timeline.systems_file", string),
+    star,
+    systems: list(t.systems, "timeline.systems", (v, q) => {
+      const s = object(v, q);
+      return {
+        index: integer(s.index, `${q}.index`),
+        planets: list(s.planets, `${q}.planets`, (pv, pq) => parseTimelinePlanet(pv, pq, star.age_yr.length)),
+      };
+    }),
+  };
+}
+
 /** A typed document from parsed JSON; throws if any field is missing or of the wrong type. */
 export function parseDocument(raw: unknown): StellarDocument {
   const doc = object(raw, "document");
-  if ([doc.grid, doc.experiment, doc.polytropes, doc.profiles, doc.population, doc.systems].every((b) => b === undefined)) {
-    fail("document", "a grid, an experiment, a polytropes, a profiles, a population or a systems block");
+  if ([doc.grid, doc.experiment, doc.polytropes, doc.profiles, doc.population, doc.systems, doc.timeline].every((b) => b === undefined)) {
+    fail("document", "a grid, an experiment, a polytropes, a profiles, a population, a systems or a timeline block");
   }
   return {
     meta: parseMeta(doc.meta),
@@ -394,5 +468,6 @@ export function parseDocument(raw: unknown): StellarDocument {
     }),
     ...(doc.population !== undefined && { population: parsePopulation(doc.population) }),
     ...(doc.systems !== undefined && { systems: parseSystems(doc.systems) }),
+    ...(doc.timeline !== undefined && { timeline: parseTimeline(doc.timeline) }),
   };
 }

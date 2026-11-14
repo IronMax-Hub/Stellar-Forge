@@ -5,7 +5,8 @@ Run: .venv/bin/python -m stellarforge.experiments <experiment> [options]
                   sun-metallicities, all (the six above), zams-extension (Phase 4, ~11 minutes),
                   planet-grid, planet-sensitivity (Phase 5, ~8 and ~2 minutes),
                   planet-surveys (Phase 5 survey checks),
-                  planets (all three; with --export also the Planets view's files)
+                  planets (all three; with --export also the Planets view's files),
+                  timelines --export (Phase 6: System Timeline files from the exported systems)
      options: --feh=-4:0.5:0.1   [Fe/H] from:to:step (maps and population)
               --masses=200       log-spaced initial masses, 0.1-300 M☉
               --stars=1000000    stars drawn from the IMF (population)
@@ -32,9 +33,12 @@ import numpy as np
 
 from . import evolution, export, mist, remnants, structure
 from .colour import temperature_to_rgb
+from .evolution import build_track
+from .planets import coevolution, shoreline, surveys
+from .planets import escape as planets_escape
 from .planets import population as planet_population
-from .planets import surveys
 from .planets.classify import CLASSES as PLANET_CLASSES
+from .planets.classify import classify
 
 ROOT = Path(__file__).parent.parent
 RESULTS = ROOT / "results"
@@ -772,12 +776,97 @@ def export_planets(meta: dict) -> Path:
             m_star_msun=c["m_star"], feh=c["feh"], n_systems=c["n"], seed=c["seed"],
             calibration=calibration, host_share=c["hosts"], planets_per_star=c["per_star"],
             systems_with_count=c["counts"], a_ice_au=c["a_ice"], systems_file=f"planets/{name}",
-            flags=failed))
+            timeline_file=f"planets/{name.replace('systems_', 'timeline_')}", flags=failed))
     out = WEB_PLANETS / "population.json"
     export.write_document(export.build_document(meta, population=export.build_population(
         star_masses_msun=PLANET_MASSES, feh_values=PLANET_FEHS,
         calibration_mass_msun=CALIBRATED_MSUN, calibration_feh=CALIBRATED_FEH, cells=cells,
         conclusions=planet_conclusions())), out)
+    return out
+
+
+def timeline_meta() -> dict:
+    return export.build_meta(
+        dataset="MIST v1.2 tracks for the stars; the planets are Phase 5's sample systems",
+        models={"habitable zone": "Kopparapu et al. 2013, runaway to maximum greenhouse, "
+                                  "2,600-7,200 K",
+                "orbits": "a M★ constant under slow mass loss (Veras et al. 2011); equilibrium "
+                          "tide after the main sequence (Zahn 1977, Mustill & Villaver 2012 "
+                          "fiducial); engulfment when a ≤ R★; sudden loss of over half the "
+                          "mass unbinds (Hills 1983)",
+                "xuv": "ported from Aion Forge: Wright et al. 2011 saturation, Ribas et al. "
+                       "2005 decay, held after the main sequence",
+                "shoreline": "Zahnle & Catling 2017 v_esc⁴ slope; K = 10 and the retention "
+                             "curve are Aion Forge's choices",
+                "escape": "energy-limited, Owen & Wu 2017 eq. 19 (η = 0.1) with their eq. 14-17 "
+                          "radius; Chen & Kipping 2017 radius where X ≥ 1"},
+        inputs={"hz_min_stay_yr": coevolution.HZ_MIN_STAY_YR,
+                "eta_escape": planets_escape.ETA, "shoreline_k": shoreline.ESCAPE_K,
+                "output_samples": float(coevolution.OUTPUT_SAMPLES)},
+        reference_keys=["Choi2016", "Dotter2016", "Kopparapu2013", "Veras2011", "Zahn1977",
+                        "VerbuntPhinney1995", "VillaverLivio2009", "MustillVillaver2012",
+                        "SchroderSmith2008", "Hills1983", "Hobbs2005", "Wright2011", "Ribas2005",
+                        "ZahnleCatling2017", "OwenWu2017", "ChenKipping2017", "Cummings2018"],
+        seed=None, created=export.git_commit_time())
+
+
+def _timeline_of(name: str, m_star: float, feh: float, systems_file: str | None,
+                 systems: list[dict], names: list[str] | None = None,
+                 t_start_yr: float | None = None) -> dict:
+    """One timeline block: every planet of `systems` (Phase 5 sample systems, or the Solar
+    System) through its star's life."""
+    track = build_track(m_star, feh)
+    hist = coevolution.star_history(track)
+    flat = [(s, p) for s in systems for p in s["planets"]]
+    res = coevolution.evolve_planets(
+        hist, [p["a_au"] for _, p in flat], [p["mass_mearth"] for _, p in flat],
+        [p["f_env"] for _, p in flat], [p["core"] == export.CORES[0] for _, p in flat],
+        [t_start_yr or s["tau_disk_yr"] for s, _ in flat], [p["a_form_au"] for _, p in flat])
+    out, j = [], 0
+    for s in systems:
+        planets = []
+        for p in s["planets"]:
+            planets.append(export.build_timeline_planet(
+                result=res, i=j, name=names[j] if names else None, planet_class=p["class"],
+                mass_mearth=p["mass_mearth"]))
+            j += 1
+        out.append({"index": int(s["index"]), "planets": planets})
+    return export.build_timeline(
+        name=name, m_star_msun=m_star, feh=feh, systems_file=systems_file,
+        star=export.build_timeline_star(track=track, hist=hist, samples=res["samples"]),
+        systems=out)
+
+
+def _timeline_cell(args) -> tuple[str, dict]:
+    path, meta = args
+    block = json.loads(path.read_text())["systems"]
+    rel = f"planets/{path.name}"
+    tl = _timeline_of(f"{block['m_star_msun']:g} M☉, [Fe/H] {block['feh']:+.3g}",
+                      block["m_star_msun"], block["feh"], rel, block["systems"])
+    out = path.with_name(path.name.replace("systems_", "timeline_"))
+    export.write_document(export.build_document(meta, timeline=tl), out)
+    return out.name
+
+
+def solar_system_timeline() -> dict:
+    systems = [{"index": 0, "tau_disk_yr": coevolution.SOLAR_DISK_END_YR, "planets": [
+        {"a_au": a, "mass_mearth": m, "f_env": f, "a_form_au": a,
+         "core": export.CORES[0] if ice else export.CORES[1],
+         "class": str(classify(m, f, ice))} for _, m, a, f, ice in coevolution.SOLAR_SYSTEM]}]
+    return _timeline_of("Solar System", 1.0, 0.0, None, systems,
+                        names=[p[0] for p in coevolution.SOLAR_SYSTEM],
+                        t_start_yr=coevolution.SOLAR_DISK_END_YR)
+
+
+def export_timelines(meta: dict, directory: Path | None = None) -> Path:
+    """planets/timeline_<nnn>.json for every planets/systems_<nnn>.json, and
+    planets/solar_system.json (System Timeline view), on 4 workers."""
+    directory = directory or WEB_PLANETS
+    files = sorted(directory.glob("systems_*.json"))
+    with Pool(4) as pool:   # the machine budget: at most 4 workers
+        pool.map(_timeline_cell, [(f, meta) for f in files])
+    out = directory / "solar_system.json"
+    export.write_document(export.build_document(meta, timeline=solar_system_timeline()), out)
     return out
 
 
@@ -924,7 +1013,7 @@ def run(name: str, params: dict, export_web: bool = False) -> Path:
 
 def parse(argv: list[str]) -> tuple[list[str], dict, bool]:
     if not argv or argv[0] not in (*EXPERIMENTS, *STRUCTURE_EXPERIMENTS, *PLANET_EXPERIMENTS,
-                                   "all", "planets"):
+                                   "all", "planets", "timelines"):
         raise SystemExit(__doc__)
     params, export_web = dict(DEFAULTS), False
     for arg in argv[1:]:
@@ -936,7 +1025,8 @@ def parse(argv: list[str]) -> tuple[list[str], dict, bool]:
         else:
             raise SystemExit(f"unknown option {arg!r}\n{__doc__}")
     feh_grid(params["feh"])  # fails early on a malformed range
-    names = {"all": list(EXPERIMENTS), "planets": list(PLANET_EXPERIMENTS)}.get(argv[0], [argv[0]])
+    names = {"all": list(EXPERIMENTS), "planets": list(PLANET_EXPERIMENTS),
+             "timelines": []}.get(argv[0], [argv[0]])
     return names, params, export_web
 
 
@@ -948,6 +1038,11 @@ def main(argv: list[str]) -> None:
         print(f"{name}: {out.relative_to(ROOT)} ({time.perf_counter() - start:.1f} s)", flush=True)
     if export_web and "planet-grid" in names:
         print(f"planets: {export_planets(planet_meta()).relative_to(ROOT)}", flush=True)
+    if export_web and ("planet-grid" in names or argv[0] == "timelines"):
+        start = time.perf_counter()
+        out = export_timelines(timeline_meta())
+        print(f"timelines: {out.relative_to(ROOT)} ({time.perf_counter() - start:.1f} s)",
+              flush=True)
 
 
 if __name__ == "__main__":

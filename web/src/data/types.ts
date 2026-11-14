@@ -2,7 +2,7 @@
 // Python writes these values; nothing here computes one.
 
 /** Must equal SCHEMA_VERSION in stellarforge/__init__.py and the fixture's meta.schema_version. */
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 
 export type Provenance = "published" | "interpolated" | "substituted" | "derived" | "predicted";
 export const PROVENANCES: readonly Provenance[] = ["published", "interpolated", "substituted", "derived", "predicted"];
@@ -189,6 +189,8 @@ export interface PopulationCell {
   a_ice_au: number;
   /** relative to the data folder */
   systems_file: string;
+  /** their timelines through the star's life, relative to the data folder */
+  timeline_file: string;
   /** validity warnings, such as survey checks the model fails */
   flags: string[];
 }
@@ -236,8 +238,72 @@ export interface Systems {
   systems: PlanetSystem[];
 }
 
+export const FATES = ["engulfed", "unbound", "orbits white dwarf", "orbits neutron star", "orbits black hole", "unresolved"] as const;
+export type Fate = (typeof FATES)[number];
+export const EVENT_KINDS = [
+  "formed", "enters habitable zone", "leaves habitable zone", "crosses shoreline", "envelope stripped",
+  "class changed", "engulfed", "unbound", "orbits remnant", "track ends",
+] as const;
+export type EventKind = (typeof EVENT_KINDS)[number];
+
+export interface PlanetEvent {
+  age_yr: number;
+  kind: EventKind;
+  detail: string;
+}
+
+/** The star at the exported ages; every list has one entry per age. */
+export interface TimelineStar {
+  provenance: Provenance;
+  method: string;
+  ending: string;
+  flags: string[];
+  age_yr: number[];
+  mass_msun: number[];
+  radius_au: number[];
+  l_lsun: number[];
+  teff_k: number[];
+  /** Kopparapu et al. 2013 limits; null where the star's temperature is outside their range */
+  hz_inner_au: (number | null)[];
+  hz_outer_au: (number | null)[];
+  phase: string[];
+  /** display colour from Teff, derived in Python */
+  rgb: Rgb[];
+}
+
+export interface TimelinePlanet {
+  name: string | null;
+  class_at_formation: PlanetClass;
+  class_final: PlanetClass;
+  mass_mearth: number;
+  final_mass_mearth: number;
+  final_f_env: number;
+  /** the orbit as knots: orbit_a_au[i] at age_yr[orbit_sample[i]]; the last knot is the last age the planet exists */
+  orbit_sample: number[];
+  orbit_a_au: number[];
+  fate: Fate;
+  closest_approach_rstar: number;
+  deciding_phase: string;
+  xuv_dose_earth: number;
+  shoreline: "kept" | "lost";
+  air_retained: number;
+  events: PlanetEvent[];
+  flags: string[];
+  provenance: Provenance;
+}
+
+/** Planets through their star's life: one cell's sample systems, or the Solar System. */
+export interface Timeline {
+  name: string;
+  m_star_msun: number;
+  feh: number;
+  systems_file: string | null;
+  star: TimelineStar;
+  systems: { index: number; planets: TimelinePlanet[] }[];
+}
+
 /** meta plus the blocks a file carries: a grid, an experiment, the polytropes, zero-age profiles,
- * a planet population or one cell's sample systems. */
+ * a planet population, one cell's sample systems or their timelines. */
 export interface StellarDocument {
   meta: Meta;
   grid?: Grid;
@@ -246,4 +312,5 @@ export interface StellarDocument {
   profiles?: { models: Profile[] };
   population?: Population;
   systems?: Systems;
+  timeline?: Timeline;
 }

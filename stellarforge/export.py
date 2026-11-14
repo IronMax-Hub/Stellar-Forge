@@ -194,7 +194,7 @@ def _check(value, allowed, what):
 def build_population_cell(*, m_star_msun: float, feh: float, n_systems: int, seed: int,
                           calibration: str, host_share: dict, planets_per_star: float,
                           systems_with_count: list[int], a_ice_au: float,
-                          systems_file: str, flags: list[str]) -> dict:
+                          systems_file: str, timeline_file: str, flags: list[str]) -> dict:
     """One grid cell's statistics. host_share: share of systems with at least one planet of each
     class; systems_with_count[k]: systems with exactly k planets; flags: validity warnings, such as
     the survey checks the model fails."""
@@ -209,6 +209,7 @@ def build_population_cell(*, m_star_msun: float, feh: float, n_systems: int, see
             "planets_per_star": float(f"{planets_per_star:.5g}"),
             "systems_with_count": [int(c) for c in systems_with_count],
             "a_ice_au": float(f"{a_ice_au:.5g}"), "systems_file": systems_file,
+            "timeline_file": timeline_file,
             "flags": [str(f) for f in flags]}
 
 
@@ -252,6 +253,69 @@ def build_systems(*, m_star_msun: float, feh: float, seed: int, calibration: str
                          "tau_disk_yr": float(f"{s['tau_disk_yr']:.4g}"),
                          "planets": sorted(s["planets"], key=lambda p: p["a_au"])}
                         for s in systems]}
+
+
+def _sig(values, digits: int = 4) -> list:
+    """Numbers to `digits` significant figures; NaN becomes null."""
+    return [None if not np.isfinite(v) else float(f"{v:.{digits}g}") for v in values]
+
+
+def build_timeline_star(*, track, hist, samples) -> dict:
+    """The star at the exported ages (planets/coevolution.py StarHistory at `samples`); the
+    habitable-zone edges are null where Kopparapu et al. 2013 do not apply."""
+    return {"provenance": track.provenance, "method": track.method, "ending": track.ending,
+            "flags": [*track.flags, *hist.flags], "age_yr": _sig(hist.age_yr[samples], 6),
+            "mass_msun": _sig(hist.mass_msun[samples]), "radius_au": _sig(hist.radius_au[samples]),
+            "l_lsun": _sig(hist.l_lsun[samples]), "teff_k": _sig(hist.teff_k[samples]),
+            "hz_inner_au": _sig(hist.hz_inner_au[samples]),
+            "hz_outer_au": _sig(hist.hz_outer_au[samples]),
+            "phase": [hist.phase_name(i) for i in samples],
+            "rgb": [_round(c, 4) for c in temperature_to_rgb(hist.teff_k[samples])]}
+
+
+def _orbit_knots(a_au) -> tuple[list[int], list[float]]:
+    """The exported orbit as (sample index, a) knots: inside a run of equal values only its ends
+    are kept, so linear drawing between knots reproduces the series; NaN (gone) ends it."""
+    a = np.asarray(a_au, float)
+    a = a[:np.flatnonzero(np.isfinite(a))[-1] + 1]
+    flat = np.isclose(a[1:-1], a[:-2], rtol=1e-4) & np.isclose(a[1:-1], a[2:], rtol=1e-4)
+    keep = np.flatnonzero(~np.concatenate([[False], flat, [False]]))
+    return [int(i) for i in keep], _sig(a[keep], 5)
+
+
+def build_timeline_planet(*, result: dict, i: int, name: str | None, planet_class: str,
+                          mass_mearth: float) -> dict:
+    """Planet i of a coevolution.evolve_planets result."""
+    from .planets.coevolution import EVENT_KINDS, FATES
+    sample, a = _orbit_knots(result["a_au"][i])
+    events = result["events"][i]
+    for e in events:
+        _check(e["kind"], EVENT_KINDS, "event kind")
+    return {"name": name, "class_at_formation": _check(planet_class, PLANET_CLASSES, "class"),
+            "class_final": _check(str(result["final_class"][i]), PLANET_CLASSES, "class"),
+            "mass_mearth": float(f"{mass_mearth:.5g}"),
+            "final_mass_mearth": float(f"{result['final_mass_mearth'][i]:.5g}"),
+            "final_f_env": float(f"{result['final_f_env'][i]:.4g}"),
+            "orbit_sample": sample, "orbit_a_au": a,
+            "fate": _check(str(result["fate"][i]), FATES, "fate"),
+            "closest_approach_rstar": float(f"{result['closest_approach_rstar'][i]:.4g}"),
+            "deciding_phase": str(result["deciding_phase"][i]),
+            "xuv_dose_earth": float(f"{result['xuv_dose_earth'][i]:.4g}"),
+            "shoreline": "lost" if result["shoreline_crossed"][i] else "kept",
+            "air_retained": float(f"{result['air_retained'][i]:.4g}"),
+            "events": events, "flags": list(result["flags"][i]), "provenance": "predicted"}
+
+
+def build_timeline(*, name: str, m_star_msun: float, feh: float, systems_file: str | None,
+                   star: dict, systems: list[dict]) -> dict:
+    """Planets through their star's life: the star at the exported ages and, per system
+    ({index, planets}), each planet's orbit, events and fate. Planets keep the order of
+    systems_file (the Phase 5 sample systems they continue), or are named (the Solar System)."""
+    n = len(star["age_yr"])
+    if any(len(v) != n for k, v in star.items() if isinstance(v, list) and k != "flags"):
+        raise ValueError("every star series needs one value per exported age")
+    return {"name": name, "m_star_msun": float(m_star_msun), "feh": float(feh),
+            "systems_file": systems_file, "star": star, "systems": systems}
 
 
 def build_grid(*, feh: float, feh_values, mass_values_msun, files: list[str],
@@ -317,11 +381,13 @@ def build_profile(*, mass_msun: float, feh: float, method: str, flags: list[str]
 
 def build_document(meta: dict, grid: dict | None = None, experiment: dict | None = None,
                    polytropes: dict | None = None, profiles: dict | None = None,
-                   population: dict | None = None, systems: dict | None = None) -> dict:
+                   population: dict | None = None, systems: dict | None = None,
+                   timeline: dict | None = None) -> dict:
     """meta plus the blocks this document carries (a grid, an experiment, polytropes, profiles,
-    a planet population or one cell's sample systems)."""
+    a planet population, one cell's sample systems or their timelines)."""
     blocks = {"grid": grid, "experiment": experiment, "polytropes": polytropes,
-              "profiles": profiles, "population": population, "systems": systems}
+              "profiles": profiles, "population": population, "systems": systems,
+              "timeline": timeline}
     return {"meta": meta, **{k: v for k, v in blocks.items() if v is not None}}
 
 

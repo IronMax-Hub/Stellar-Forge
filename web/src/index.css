@@ -471,3 +471,37 @@ dd {
 .system-pick {
   font-size: 0.9rem;
 }
+
+.hz-band {
+  fill: none;
+  stroke: #3f8f5a;
+  stroke-opacity: 0.35;
+}
+
+.timeline-controls .wide {
+  flex: 1 1 24rem;
+}
+
+.event-log {
+  flex: 1 1 22rem;
+  max-height: 460px;
+  overflow-y: auto;
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 0.85rem;
+  color: #7d8090;
+}
+
+.event-log .past {
+  color: inherit;
+}
+
+.linklike {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #8ad8f0;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+}
