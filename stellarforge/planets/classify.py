@@ -5,7 +5,9 @@ sensitivity runs:
 - F_ENV_GIANT = 0.5: the hydrogen-helium envelope outweighs everything else;
 - F_ENV_ENVELOPE = 0.01: below the few-percent envelope that already doubles a small planet's
   radius (Owen & Wu 2017);
-- M_SOLID_BREAK = 2 M⊕: Chen & Kipping's (2017) break between solid and Neptunian worlds;
+- M_SOLID_BREAK = 2 M⊕: Chen & Kipping's (2017) break between solid and Neptunian worlds; a body
+  below it is terrestrial even with a thin envelope, which a sub-Neptune's name would misdescribe
+  (Phase 6's escape calculation strips such envelopes);
 - M_ICE_GIANT = 10 M⊕: keeps small icy planets out of the ice-giant class (Uranus and Neptune are
   about 15 and 17 M⊕).
 """
@@ -30,6 +32,6 @@ def classify(m_planet, f_env, ice_rich):
     return np.select(
         [f >= F_ENV_GIANT,
          envelope & (m >= M_ICE_GIANT) & ice,
-         envelope,
+         envelope & (m >= M_SOLID_BREAK),
          (f < F_ENV_ENVELOPE) & (m >= M_SOLID_BREAK)],
         CLASSES[:4], default=CLASSES[4])

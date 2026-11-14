@@ -68,6 +68,18 @@ def gap_factor(m_planet, a_au, m_star_msun=1.0, alpha=ALPHA):
     return np.clip((hi - np.log(np.maximum(m_planet, 1e-30))) / (hi - lo), 0.0, 1.0)
 
 
+def viscous_couple_radius_au(t_yr, tau_dep_yr, m_star_msun=1.0, alpha=ALPHA):
+    """r_m, the radius of maximum viscous couple, which Paper VII uses (§3.5) but does not give.
+
+    At t = 0 it follows from eqs. 32-33: for T of eq. 16, ν ∝ r and τ_dep ≈ 2 r_m² / 3ν(r_m) =
+    0.7 × 10⁵ (α/10⁻³)⁻¹ (r_m/1 AU) (M★/M☉)^-1/2 yr, so r_m,0 = (τ_dep / 7 × 10⁴ yr) (α/10⁻³)
+    (M★/M☉)^1/2 AU, the paper's 15-150 AU for 1-10 Myr. It then grows as the disk spreads. Ida & Lin
+    2004a's argument (eqs. 66-67, total angular momentum conserved, J ∝ Σ_g,10 r_m^3/2 for Σ_g ∝ r⁻¹)
+    gives r_m ∝ Σ_g^-2/3, so r_m = r_m,0 exp(2t / 3τ_dep) under eq. 18's decay."""
+    r0 = np.asarray(tau_dep_yr) / 7e4 * (alpha / 1e-3) * np.sqrt(m_star_msun)
+    return r0 * np.exp(2 * np.asarray(t_yr) / (3 * np.asarray(tau_dep_yr)))
+
+
 def disk_mass_mearth(f_g, r_m_au):
     """Gas inside r_m for eq. 15's profile, ∫ 2π r Σ_g dr = 2π Σ_g,10 (10 AU) r_m, in M⊕: the test
     between the disk- and planet-dominated regimes of §3.5."""

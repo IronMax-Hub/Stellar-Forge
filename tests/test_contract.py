@@ -185,6 +185,10 @@ def test_planet_export_matches_fixture_shape(tmp_path, monkeypatch):
     labels = [c["label"] for c in population["population"]["conclusions"]]
     assert labels[:2] == ["prediction"] * 2
     assert labels[-7:] == ["observational constraint"] * 7       # the survey checks
+    failed = [c["name"] for c in experiments.planet_survey_checks() if not c["passed"]]
+    for cell in population["population"]["cells"]:               # every failure warns every cell
+        assert len(cell["flags"]) == len(failed)
+        assert all(f.startswith(f"survey_check_failed: {n}: model ") for f, n in zip(cell["flags"], failed))
     surveys_doc = experiments.planet_surveys({})
     assert len(surveys_doc["panels"][0]["rows"]) == 7
     systems = json.loads((tmp_path / "systems_001.json").read_text())

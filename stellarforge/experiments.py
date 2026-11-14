@@ -759,6 +759,9 @@ def planet_surveys(p) -> dict:
 def export_planets(meta: dict) -> Path:
     """The Planets view's files: planets/population.json and one systems file per cell."""
     cells, flat = [], [c for row in planet_grid_cells() for c in row]
+    # Survey failures are model limits, so every cell carries them (ground rule 6)
+    failed = [f"survey_check_failed: {c['name']}: model {c['model']:.3g}, survey {c['survey']:.3g} "
+              f"({c['source']})" for c in planet_survey_checks() if not c["passed"]]
     for i, c in enumerate(flat):
         calibration = "prediction" if _calibrated(c["m_star"], c["feh"]) else "extrapolation"
         name = f"systems_{i:03d}.json"
@@ -768,7 +771,8 @@ def export_planets(meta: dict) -> Path:
         cells.append(export.build_population_cell(
             m_star_msun=c["m_star"], feh=c["feh"], n_systems=c["n"], seed=c["seed"],
             calibration=calibration, host_share=c["hosts"], planets_per_star=c["per_star"],
-            systems_with_count=c["counts"], a_ice_au=c["a_ice"], systems_file=f"planets/{name}"))
+            systems_with_count=c["counts"], a_ice_au=c["a_ice"], systems_file=f"planets/{name}",
+            flags=failed))
     out = WEB_PLANETS / "population.json"
     export.write_document(export.build_document(meta, population=export.build_population(
         star_masses_msun=PLANET_MASSES, feh_values=PLANET_FEHS,

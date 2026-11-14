@@ -29,6 +29,7 @@ CARBON_END = "end of core carbon burning"
 NO_CO_CORE = CARBON_END + ", CO-core mass missing in MIST"
 NO_HE_CORE = CARBON_END + ", helium-core mass missing in MIST"
 UNIVERSE_AGE_YR = 13.8e9
+INTERPOLATION_TARGET_DEX = 0.02    # build plan, Validation: main-sequence log L and log Teff
 
 
 @dataclass(frozen=True)
@@ -127,6 +128,34 @@ def _ending_flags(ending: str) -> list[str]:
     return [f"track_incomplete: stops at {ending}"]
 
 
+_OVER_TARGET: dict[int, set[tuple[int, int]]] = {}
+
+
+def _over_target(grid: Grid) -> set[tuple[int, int]]:
+    """Grid points (i_feh, i_mass) that, rebuilt from their neighbours along either axis
+    (`leave_one_out`), miss INTERPOLATION_TARGET_DEX in log L or log Teff on the main sequence."""
+    if id(grid) not in _OVER_TARGET:
+        i_mass = {float(m): i for i, m in enumerate(grid.masses_msun)}
+        i_feh = {float(f): i for i, f in enumerate(grid.fehs)}
+        _OVER_TARGET[id(grid)] = {(i_feh[r[1]], i_mass[r[0]])
+                                  for rows in leave_one_out(grid).values() for r in rows
+                                  if max(r[2], r[3]) > INTERPOLATION_TARGET_DEX}
+    return _OVER_TARGET[id(grid)]
+
+
+def _blend_flags(grid: Grid, corners: list[tuple[int, int, float]]) -> list[str]:
+    """Warnings for a star built from more than one grid track."""
+    flags = []
+    if any(f in (0, len(grid.fehs) - 1) or m in (0, len(grid.masses_msun) - 1)
+           for f, m, _ in corners):
+        flags.append("near_grid_boundary")
+    if any((f, m) in _over_target(grid) for f, m, _ in corners):
+        flags.append(f"interpolation_error_may_exceed_{INTERPOLATION_TARGET_DEX:g}_dex: a corner "
+                     "track rebuilt from its neighbours misses log L or log Teff by more on the "
+                     "main sequence")
+    return flags
+
+
 def build_track(mass_msun: float, feh: float, grid: Grid | None = None) -> Track:
     grid = grid or load_grid()
     ms = _bracket(np.log10(grid.masses_msun), float(np.log10(mass_msun)), "log mass")
@@ -145,7 +174,9 @@ def build_track(mass_msun: float, feh: float, grid: Grid | None = None) -> Track
                   f"nearest MIST track: {grid.masses_msun[near_m]:g} M☉, "
                   f"[Fe/H] {grid.fehs[near_f]:+.2f}; {d_logm:.3f} dex away in log mass, "
                   f"{abs(feh - grid.fehs[near_f]):.2f} in [Fe/H]")
-        flags = [] if exact else ["nearest_track_used", "cell_tracks_end_differently"]
+        flags = [] if exact else ["nearest_track_used", "cell_tracks_end_differently",
+                                  *[f for f in _blend_flags(grid, corners)
+                                    if f == "near_grid_boundary"]]   # nothing blended here
         return Track(mass_msun, feh, method, "published" if exact else "substituted", ending,
                      star_type,
                      flags + _ending_flags(ending), dict(zip(grid.columns, rows.T)))
@@ -156,7 +187,7 @@ def build_track(mass_msun: float, feh: float, grid: Grid | None = None) -> Track
     # A blended phase label means nothing; take the nearest corner's, with its star type.
     values["phase"] = grid.rows(near_f, near_m)[:n, grid.columns.index("phase")]
     return Track(mass_msun, feh, "EEP interpolation (log mass, [Fe/H])", "interpolated", ending,
-                 star_type, _ending_flags(ending), values)
+                 star_type, _blend_flags(grid, corners) + _ending_flags(ending), values)
 
 
 class Star:

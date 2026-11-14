@@ -9,7 +9,8 @@ equation numbers are Paper VII's unless stated):
 - gas: once M_c > M_c,hydro(Ṁ_c) (Ida & Lin 2004a eq. 33, from Ikoma et al. 2000),
   dM/dt = f_gap min(M / τ_KH, Ṁ_disk) (eqs. 23-31), ending at the thermal gap mass M_g,th (eq. 28);
 - migration: type I as C1 times Tanaka et al. 2002 (eq. 22); type II from the viscous gap mass
-  M_g,vis (eq. 27), disk- or planet-dominated (eqs. 32, 34); stopped at the inner edge. An embryo
+  M_g,vis (eq. 27), disk- or planet-dominated (eqs. 32, 34), inward inside r_m (derived from eqs.
+  32-33, ida_lin_2013.viscous_couple_radius_au); stopped at the inner edge. An embryo
   that closes on its inner neighbour is trapped in resonance 5 Hill radii outside it, so convoys
   park in a chain outward from the inner edge (Ida & Lin 2010 §2.4-2.5), and a seed that has
   migrated to half its starting radius leaves a next-generation seed there (2010 §2.5);
@@ -53,7 +54,7 @@ from .impacts import (
     escape_eccentricity,
     merged_orbit,
 )
-from .migration import C1_DEFAULT, INNER_EDGE_AU, max_viscous_couple_radius_au
+from .migration import C1_DEFAULT, INNER_EDGE_AU
 from .radius import radius_rearth
 
 SEEDS = 15                      # per disk, log-uniform in SEED_RANGE_AU (Ida & Lin 2008a §3.3)
@@ -167,7 +168,7 @@ def evolve(disks: dict, m_star_msun: float, c1: float = C1_DEFAULT, alpha: float
         iso = np.minimum(isolation_mass(sigma_dust(a, f_d, a_ice), a, m_star_msun), solids_cap)
         active = core > 0
         growing = active & (core < iso)
-        grown = (np.cbrt(m) + dt / (3 * k)) ** 3 - m
+        grown = (np.cbrt(core) + dt / (3 * k)) ** 3 - core      # eq. 19: the core's own mass
         new_core = np.where(growing, np.minimum(core + grown, iso), core)
         mdot_core = np.where(growing, (new_core - core) / np.maximum(dt, 1e-30), 0.0)
         a_form = np.where(new_core > core * (1 + 1e-9), a, a_form)
@@ -187,7 +188,7 @@ def evolve(disks: dict, m_star_msun: float, c1: float = C1_DEFAULT, alpha: float
         gap |= m >= vii.viscous_gap_mass(a, m_star_msun, alpha)     # type II from M_g,vis
         # Migration (Ida, Lin & Nagasawa 2013 eqs. 22, 32, 34): each rate is a power law ȧ ∝ a^n,
         # so a^(1-n) moves linearly in time; n is read off the rate itself
-        r_m = max_viscous_couple_radius_au(tm, tau)
+        r_m = vii.viscous_couple_radius_au(tm, tau, m_star_msun, alpha)
         here, nudged = (np.where(gap, vii.type2_rate(r, m, f_g, r_m, m_star_msun, alpha),
                                  vii.type1_rate(r, np.maximum(m, SEED_MASS), f_g, m_star_msun, c1))
                         for r in (a, a * 1.01))
@@ -245,7 +246,10 @@ def after_gas(state: dict, disks: dict, m_star_msun: float, rng: np.random.Gener
 
     shortcut: only the encountering pair is scattered; the rest of its group (Appendix step 4)
     keeps its orbits until its own encounter. Add it if eccentricities or spacings matter.
-    shortcut: a merged body keeps the formation radius, so the core composition, of the heavier."""
+    shortcut: a merged body keeps the formation radius, so the core composition, of the heavier.
+    shortcut: a merger adds the two envelopes, though a giant impact strips gas (Ida & Lin 2010
+    leave envelopes out); replace with an impact-stripping prescription if envelopes of merged
+    planets matter."""
     core, env = state["core_mearth"].copy(), state["env_mearth"].copy()
     a, a_form = state["a_au"].copy(), state["a_form_au"].copy()
     a_ice, n = state["a_ice_au"], len(a)

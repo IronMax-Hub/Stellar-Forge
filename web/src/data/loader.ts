@@ -313,6 +313,7 @@ function parseCell(value: unknown, path: string): PopulationCell {
     systems_with_count: list(c.systems_with_count, `${path}.systems_with_count`, integer),
     a_ice_au: number(c.a_ice_au, `${path}.a_ice_au`),
     systems_file: string(c.systems_file, `${path}.systems_file`),
+    flags: list(c.flags, `${path}.flags`, string),
   };
   if (cell.systems_with_count.reduce((a, b) => a + b, 0) !== cell.n_systems) fail(`${path}.systems_with_count`, "counts adding up to n_systems");
   return cell;
