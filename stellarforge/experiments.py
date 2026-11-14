@@ -2,7 +2,8 @@
 
 Run: .venv/bin/python -m stellarforge.experiments <experiment> [options]
      experiments: lifetime-map, full-life-map, remnant-map, remnant-mass-curves, population,
-                  sun-metallicities, all (the six above), zams-extension (Phase 4, ~11 minutes)
+                  sun-metallicities, all (the six above), zams-extension (Phase 4, ~11 minutes),
+                  planet-grid, planet-sensitivity (Phase 5, ~4 and ~2 minutes)
      options: --feh=-4:0.5:0.1   [Fe/H] from:to:step (maps and population)
               --masses=200       log-spaced initial masses, 0.1-300 M☉
               --stars=1000000    stars drawn from the IMF (population)
@@ -29,6 +30,8 @@ import numpy as np
 
 from . import evolution, export, mist, remnants, structure
 from .colour import temperature_to_rgb
+from .planets import population as planet_population
+from .planets.classify import CLASSES as PLANET_CLASSES
 
 ROOT = Path(__file__).parent.parent
 RESULTS = ROOT / "results"
@@ -476,6 +479,109 @@ def zams_extension(p) -> dict:
 STRUCTURE_EXPERIMENTS = {"zams-extension": zams_extension}
 
 
+# ---- Phase 5: planet populations --------------------------------------------------------------
+
+PLANET_MASSES = tuple(float(f"{m:.3g}") for m in np.geomspace(0.2, 1.5, 8))
+PLANET_FEHS = (-4.0, -3.0, -2.0, -1.5, -1.0, -0.75, -0.5, -0.375, -0.25, -0.125, 0.0, 0.125, 0.25,
+               0.375, 0.5)
+PLANET_SYSTEMS = 5000
+PLANET_SEED = 20261114
+CALIBRATED_MSUN, CALIBRATED_FEH = (0.2, 1.5), (-0.5, 0.5)   # Ida & Lin 2005; survey coverage
+# Variants for the sensitivity runs: one change from the defaults each (build plan, step 4)
+SENSITIVITY = {"defaults": {}, "C1 = 0.03": {"c1": 0.03}, "C1 = 0.3": {"c1": 0.3},
+               "τ_disk 0.5-5 Myr": {"tau_disk_range_yr": (5e5, 5e6)},
+               "τ_disk 2-20 Myr": {"tau_disk_range_yr": (2e6, 2e7)},
+               "f_g spread 0.5 dex": {"f_g_sigma_dex": 0.5},
+               "f_g spread 1.5 dex": {"f_g_sigma_dex": 1.5},
+               "disk mass ∝ M★²": {"disk_mass_scaling": "ida-lin"}}
+SENSITIVITY_CELLS = ((1.0, -0.5), (1.0, 0.0), (1.0, 0.3), (0.5, 0.0))
+
+
+def _planet_stats(args) -> dict:
+    """One cell's statistics: the share of systems hosting each class, and planets per star."""
+    m_star, feh, n, seed, params = args
+    cell = planet_population.run_cell(m_star, feh, n, seed, **params)
+    p = cell["planets"]
+    hosts = {k: np.unique(p["system"][p["class"] == k]).size / n for k in PLANET_CLASSES}
+    return {"m_star": m_star, "feh": feh, "hosts": hosts, "per_star": len(p["system"]) / n}
+
+
+def _calibrated(m_star: float, feh: float) -> bool:
+    return (CALIBRATED_MSUN[0] <= m_star <= CALIBRATED_MSUN[1]
+            and CALIBRATED_FEH[0] <= feh <= CALIBRATED_FEH[1])
+
+
+def planet_grid(p) -> dict:
+    jobs = [(m, f, PLANET_SYSTEMS, PLANET_SEED + i, {})
+            for i, (f, m) in enumerate((f, m) for f in PLANET_FEHS for m in PLANET_MASSES)]
+    with Pool(4) as pool:   # the machine budget: at most 4 workers
+        flat = pool.map(_planet_stats, jobs, chunksize=1)
+    rows = [flat[i * len(PLANET_MASSES):(i + 1) * len(PLANET_MASSES)]
+            for i in range(len(PLANET_FEHS))]
+
+    def heat(title, value, label, log=False):
+        return export.build_panel(
+            title=title, kind="heatmap", x_values=PLANET_MASSES, x_label="Star mass (M☉)",
+            y_label="[Fe/H]", value_label=label, log_x=True, log_values=log,
+            rows=[export.build_row(label=f"{f:+.3g}", y=f, values=[value(c) for c in row],
+                                   provenance=["predicted"] * len(row))
+                  for f, row in zip(PLANET_FEHS, rows)])
+    sun = int(np.argmin(np.abs(np.log(np.array(PLANET_MASSES)))))
+    return export.build_experiment(
+        name="planet-grid", title="Planet populations by star mass and metallicity",
+        summary=(f"Ida & Lin's population synthesis (2004a recipe, 2008a seeding): "
+                 f"{PLANET_SYSTEMS:,} disks per cell, 15 seeds each, seeds {PLANET_SEED}+cell "
+                 f"index. Defaults: C1 = {planet_population.C1_DEFAULT}, α = "
+                 f"{planet_population.ALPHA_DEFAULT:g}, disk mass ∝ M★, f_g spread 1 dex, τ_disk "
+                 "1-10 Myr. Planets are bodies of at least "
+                 f"{planet_population.M_MIN_PLANET} M⊕ when the gas is gone; seeds that reach the "
+                 "inner edge merge into one. Inside the calibration range (0.2-1.5 M☉, [Fe/H] "
+                 "-0.5 to +0.5) cells are predictions; below [Fe/H] -0.5 they are extrapolations. "
+                 "Survey comparisons come in a later step."),
+        panels=[heat("Systems with a gas giant", lambda c: c["hosts"]["gas giant"], "share"),
+                heat("Planets per star (≥ 0.1 M⊕)", lambda c: c["per_star"], "planets"),
+                export.build_panel(
+                    title=f"Systems hosting each class around a {PLANET_MASSES[sun]} M☉ star",
+                    kind="curves", x_values=PLANET_FEHS, x_label="[Fe/H]", y_label="share",
+                    value_label="share",
+                    rows=[export.build_row(label=k, values=[r[sun]["hosts"][k] for r in rows],
+                                           provenance=["predicted"] * len(rows))
+                          for k in PLANET_CLASSES])])
+
+
+def planet_sensitivity(p) -> dict:
+    jobs = [(m, f, PLANET_SYSTEMS, PLANET_SEED + k, params)
+            for params in SENSITIVITY.values() for k, (m, f) in enumerate(SENSITIVITY_CELLS)]
+    with Pool(4) as pool:
+        flat = pool.map(_planet_stats, jobs, chunksize=1)
+    n = len(SENSITIVITY_CELLS)
+    rows, holds = [], {}
+    for i, name in enumerate(SENSITIVITY):
+        g = [c["hosts"]["gas giant"] for c in flat[i * n:(i + 1) * n]]
+        rises = g[0] < g[1] < g[2]          # more giants at higher [Fe/H] (1 M☉)
+        fewer = g[3] < g[1]                 # fewer giants around 0.5 M☉ than 1 M☉
+        holds[name] = (rises, fewer)
+        rows.append(export.build_row(
+            label=name, values=[*g, flat[i * n + 1]["per_star"], np.nan, np.nan],
+            labels=[None] * (n + 1) + ["yes" if rises else "no", "yes" if fewer else "no"],
+            provenance=["predicted"] * (n + 1) + [None, None]))
+    columns = [f"giant share {m} M☉ {f:+.1f}" for m, f in SENSITIVITY_CELLS] + [
+        "planets/star 1 M☉ 0.0", "giants rise with [Fe/H]", "fewer giants at 0.5 M☉"]
+    robust = [c for c, k in (("giants rise with [Fe/H]", 0), ("fewer giants at 0.5 M☉", 1))
+              if all(h[k] for h in holds.values())]
+    return export.build_experiment(
+        name="planet-sensitivity", title="Which planet-population conclusions survive the "
+                                         "parameter changes",
+        summary=(f"Each row changes one default; {PLANET_SYSTEMS:,} disks per cell, the same seed "
+                 "per cell in every row. Conclusions that hold in every row: "
+                 + (", ".join(robust) if robust else "none") + ". The rest are parameter-sensitive."),
+        panels=[export.build_panel(title="Sensitivity runs", kind="table", rows=rows,
+                                   columns=columns)])
+
+
+PLANET_EXPERIMENTS = {"planet-grid": planet_grid, "planet-sensitivity": planet_sensitivity}
+
+
 # ---- Figures --------------------------------------------------------------------------------
 
 def figure(experiment: dict, path: Path) -> None:
@@ -527,6 +633,25 @@ def figure(experiment: dict, path: Path) -> None:
 # ---- Running --------------------------------------------------------------------------------
 
 def result_document(name: str, params: dict) -> dict:
+    if name in PLANET_EXPERIMENTS:
+        meta = export.build_meta(
+            dataset="none: a semi-analytic model, no observational data enters the predictions",
+            models={"planets": "Ida & Lin 2004a growth, gas capture and type II migration; type I "
+                               "as C1 times Tanaka et al. 2002 (Ida & Lin 2008a); 15 seeds per "
+                               "disk (Ida & Lin 2008a)",
+                    "classes": "ordered rules on mass, envelope fraction and core ice"},
+            inputs={"systems_per_cell": float(PLANET_SYSTEMS), "seed": float(PLANET_SEED),
+                    "c1": planet_population.C1_DEFAULT, "alpha": planet_population.ALPHA_DEFAULT,
+                    "f_g_sigma_dex": planet_population.F_G_SIGMA_DEX,
+                    "tau_disk_min_yr": planet_population.TAU_DISK_RANGE_YR[0],
+                    "tau_disk_max_yr": planet_population.TAU_DISK_RANGE_YR[1],
+                    "steps_per_dex": float(planet_population.STEPS_PER_DEX),
+                    "m_min_planet_mearth": planet_population.M_MIN_PLANET},
+            reference_keys=["IdaLin2004a", "IdaLin2004b", "IdaLin2005", "IdaLin2008a",
+                            "Hayashi1981", "KokuboIda1998", "Ikoma2000", "Andrews2013",
+                            "ChenKipping2017", "OwenWu2017"],
+            seed=PLANET_SEED, created=export.git_commit_time())
+        return export.build_document(meta, experiment=PLANET_EXPERIMENTS[name](params))
     if name in STRUCTURE_EXPERIMENTS:
         meta = export.build_meta(
             dataset="MIST v1.2 zero-age stars (EEP 202) for comparison; OPAL and Ferguson et al. "
@@ -585,7 +710,8 @@ def run(name: str, params: dict, export_web: bool = False) -> Path:
 
 
 def parse(argv: list[str]) -> tuple[list[str], dict, bool]:
-    if not argv or argv[0] not in (*EXPERIMENTS, *STRUCTURE_EXPERIMENTS, "all"):
+    if not argv or argv[0] not in (*EXPERIMENTS, *STRUCTURE_EXPERIMENTS, *PLANET_EXPERIMENTS,
+                                   "all"):
         raise SystemExit(__doc__)
     params, export_web = dict(DEFAULTS), False
     for arg in argv[1:]:

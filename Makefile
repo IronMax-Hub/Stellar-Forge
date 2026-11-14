@@ -4,7 +4,7 @@ BEDARD := $(HOME)/.cache/stellar-forge/bedard2020/AllSequences.tar.gz
 KAP := $(HOME)/.cache/stellar-forge/mesa_kap/kap_data.tar.xz
 UV := $(shell command -v uv || echo $(HOME)/.local/bin/uv)
 
-.PHONY: setup check dev bench data export experiments extension
+.PHONY: setup check dev bench data export experiments extension planets
 
 setup:
 	$(UV) sync
@@ -53,3 +53,9 @@ experiments:
 # Experiments view. Needs `make data`.
 extension:
 	OMP_NUM_THREADS=1 .venv/bin/python -m stellarforge.experiments zams-extension --export
+
+# Phase 5's planet populations: 8 star masses x 15 [Fe/H], 5,000 disks each, then the sensitivity
+# runs, on 4 workers (~6 minutes in all).
+planets:
+	OMP_NUM_THREADS=1 .venv/bin/python -m stellarforge.experiments planet-grid --export
+	OMP_NUM_THREADS=1 .venv/bin/python -m stellarforge.experiments planet-sensitivity --export

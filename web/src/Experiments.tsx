@@ -9,7 +9,7 @@ import type { Experiment, Meta, Panel, PanelRow, Provenance } from "./data/types
 
 const DATA = `${import.meta.env.BASE_URL}data/experiments/`;
 /** The six Phase 3 experiments and Phase 4's zero-age extension, in the order the tabs show them. */
-const NAMES = ["lifetime-map", "full-life-map", "remnant-map", "remnant-mass-curves", "population", "sun-metallicities", "zams-extension"];
+const NAMES = ["lifetime-map", "full-life-map", "remnant-map", "remnant-mass-curves", "population", "sun-metallicities", "zams-extension", "planet-grid", "planet-sensitivity"];
 
 // Display colours for words that stand in for numbers
 const WORD_COLOURS: Record<string, string> = {
@@ -49,7 +49,7 @@ export default function Experiments() {
     asked.current.add(name);
     fetch(DATA + name + ".json")
       .then((r) => {
-        if (!r.ok) throw new Error(`${name}: HTTP ${r.status}; run \`make experiments\``);
+        if (!r.ok) throw new Error(`${name}: HTTP ${r.status}; run \`make experiments\` (or \`make extension\`, \`make planets\`)`);
         return r.json();
       })
       .then((raw) => {
