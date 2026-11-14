@@ -125,6 +125,11 @@
   "doi": "10.1088/0004-637x/719/1/810"
  },
  {
+  "key": "IdaLinNagasawa2013",
+  "citation": "Ida 2013, The Astrophysical Journal, 775, 42: TOWARD A DETERMINISTIC MODEL OF PLANETARY FORMATION. VII. ECCENTRICITY DISTRIBUTION OF GAS GIANTS",
+  "doi": "10.1088/0004-637x/775/1/42"
+ },
+ {
   "key": "KokuboIda1998",
   "citation": "Kokubo 1998, Icarus, 131, 171-178: Oligarchic Growth of Protoplanets",
   "doi": "10.1006/icar.1997.5840"

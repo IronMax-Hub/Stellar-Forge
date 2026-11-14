@@ -2,7 +2,7 @@
 // Python writes these values; nothing here computes one.
 
 /** Must equal SCHEMA_VERSION in stellarforge/__init__.py and the fixture's meta.schema_version. */
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 export type Provenance = "published" | "interpolated" | "substituted" | "derived" | "predicted";
 export const PROVENANCES: readonly Provenance[] = ["published", "interpolated", "substituted", "derived", "predicted"];
@@ -166,11 +166,82 @@ export interface Profile extends Record<ProfileArray, number[]>, Record<ProfileS
   convective: boolean[];
 }
 
-/** meta plus the blocks a file carries: a grid, an experiment, the polytropes or zero-age profiles. */
+export const PLANET_CLASSES = ["gas giant", "ice giant", "sub-Neptune", "super-Earth", "terrestrial"] as const;
+export type PlanetClass = (typeof PLANET_CLASSES)[number];
+export const CALIBRATIONS = ["observational constraint", "prediction", "parameter-sensitive", "extrapolation"] as const;
+export type Calibration = (typeof CALIBRATIONS)[number];
+export const CORES = ["ice-rich", "rock-dominated"] as const;
+export type Core = (typeof CORES)[number];
+
+/** One star mass and [Fe/H] of the planet grid. */
+export interface PopulationCell {
+  m_star_msun: number;
+  feh: number;
+  n_systems: number;
+  seed: number;
+  calibration: Calibration;
+  provenance: Provenance;
+  /** class -> share of systems with at least one planet of that class */
+  host_share: Record<PlanetClass, number>;
+  planets_per_star: number;
+  /** entry k: systems with exactly k planets */
+  systems_with_count: number[];
+  a_ice_au: number;
+  /** relative to the data folder */
+  systems_file: string;
+}
+
+/** The planet grid; the selectors snap to star_masses_msun and feh_values. */
+export interface Population {
+  star_masses_msun: number[];
+  feh_values: number[];
+  classes: PlanetClass[];
+  calibration_mass_msun: [number, number];
+  calibration_feh: [number, number];
+  /** [Fe/H]-major: all masses of the first [Fe/H] first */
+  cells: PopulationCell[];
+  conclusions: { statement: string; label: Calibration }[];
+}
+
+export interface PlanetResult {
+  class: PlanetClass;
+  mass_mearth: number;
+  radius_rearth: number;
+  a_au: number;
+  a_form_au: number;
+  f_env: number;
+  core: Core;
+  provenance: Provenance;
+  radius_provenance: Provenance;
+}
+
+export interface PlanetSystem {
+  index: number;
+  f_g0: number;
+  f_d0: number;
+  tau_disk_yr: number;
+  /** from the inside out */
+  planets: PlanetResult[];
+}
+
+/** One cell's sample systems. */
+export interface Systems {
+  m_star_msun: number;
+  feh: number;
+  seed: number;
+  calibration: Calibration;
+  a_ice_au: number;
+  systems: PlanetSystem[];
+}
+
+/** meta plus the blocks a file carries: a grid, an experiment, the polytropes, zero-age profiles,
+ * a planet population or one cell's sample systems. */
 export interface StellarDocument {
   meta: Meta;
   grid?: Grid;
   experiment?: Experiment;
   polytropes?: Polytropes;
   profiles?: { models: Profile[] };
+  population?: Population;
+  systems?: Systems;
 }

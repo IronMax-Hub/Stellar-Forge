@@ -2,7 +2,10 @@
 
 Run: .venv/bin/python -m stellarforge.experiments <experiment> [options]
      experiments: lifetime-map, full-life-map, remnant-map, remnant-mass-curves, population,
-                  sun-metallicities, all (the six above), zams-extension (Phase 4, ~11 minutes)
+                  sun-metallicities, all (the six above), zams-extension (Phase 4, ~11 minutes),
+                  planet-grid, planet-sensitivity (Phase 5, ~8 and ~2 minutes),
+                  planet-surveys (Phase 5 survey checks),
+                  planets (all three; with --export also the Planets view's files)
      options: --feh=-4:0.5:0.1   [Fe/H] from:to:step (maps and population)
               --masses=200       log-spaced initial masses, 0.1-300 M☉
               --stars=1000000    stars drawn from the IMF (population)
@@ -29,6 +32,9 @@ import numpy as np
 
 from . import evolution, export, mist, remnants, structure
 from .colour import temperature_to_rgb
+from .planets import population as planet_population
+from .planets import surveys
+from .planets.classify import CLASSES as PLANET_CLASSES
 
 ROOT = Path(__file__).parent.parent
 RESULTS = ROOT / "results"
@@ -476,6 +482,305 @@ def zams_extension(p) -> dict:
 STRUCTURE_EXPERIMENTS = {"zams-extension": zams_extension}
 
 
+# ---- Phase 5: planet populations --------------------------------------------------------------
+
+PLANET_MASSES = tuple(float(f"{m:.3g}") for m in np.geomspace(0.2, 1.5, 8))
+PLANET_FEHS = (-4.0, -3.0, -2.0, -1.5, -1.0, -0.75, -0.5, -0.375, -0.25, -0.125, 0.0, 0.125, 0.25,
+               0.375, 0.5)
+PLANET_SYSTEMS = 5000
+PLANET_SEED = 20261114
+CALIBRATED_MSUN, CALIBRATED_FEH = (0.2, 1.5), (-0.5, 0.5)   # Ida & Lin 2005; survey coverage
+# Variants for the sensitivity runs: one change from the defaults each (build plan, step 4)
+SENSITIVITY = {"defaults": {}, "C1 = 0.03": {"c1": 0.03}, "C1 = 0.3": {"c1": 0.3},
+               "τ_disk 0.5-5 Myr": {"tau_disk_range_yr": (5e5, 5e6)},
+               "τ_disk 2-20 Myr": {"tau_disk_range_yr": (2e6, 2e7)},
+               "f_g spread 0.5 dex": {"f_g_sigma_dex": 0.5},
+               "f_g spread 1.5 dex": {"f_g_sigma_dex": 1.5},
+               "disk mass ∝ M★²": {"disk_mass_scaling": "ida-lin"}}
+SENSITIVITY_CELLS = ((1.0, -0.5), (1.0, 0.0), (1.0, 0.3), (0.5, 0.0))
+
+
+SAMPLE_SYSTEMS = 200     # exported per cell for the Planets view (build plan, step 5)
+WEB_PLANETS = export.WEB_DATA / "planets"
+
+
+def _planet_stats(args) -> dict:
+    """One cell's statistics: the share of systems hosting each class, planets per star, how many
+    systems have each number of planets and, for the default parameters, the first SAMPLE_SYSTEMS
+    systems (an unbiased sample: the disks are drawn at random)."""
+    m_star, feh, n, seed, params = args
+    survey_only = params.get("survey_only", False)
+    params = {k: v for k, v in params.items() if k != "survey_only"}
+    cell = planet_population.run_cell(m_star, feh, n, seed, **params)
+    p = cell["planets"]
+    hosts = {k: np.unique(p["system"][p["class"] == k]).size / n for k in PLANET_CLASSES}
+    out = {"m_star": m_star, "feh": feh, "seed": seed, "n": n, "hosts": hosts,
+           "per_star": len(p["system"]) / n, "a_ice": cell["a_ice_au"],
+           "counts": np.bincount(np.bincount(p["system"], minlength=n)).tolist(),
+           "survey": surveys.survey_stats(p, n, m_star, seed=seed)}
+    if not params and not survey_only:
+        d = cell["disks"]
+        out["samples"] = [
+            {"index": i, "f_g0": d["f_g0"][i], "f_d0": d["f_d0"][i],
+             "tau_disk_yr": d["tau_disk_yr"][i],
+             "planets": [export.build_planet(
+                 planet_class=str(p["class"][j]), mass_mearth=p["mass_mearth"][j],
+                 radius_rearth=p["radius_rearth"][j], a_au=p["a_au"][j],
+                 a_form_au=p["a_form_au"][j], f_env=p["f_env"][j], ice_rich=bool(p["ice_rich"][j]))
+                 for j in np.flatnonzero(p["system"] == i)]}
+            for i in range(min(SAMPLE_SYSTEMS, n))]
+    return out
+
+
+def _calibrated(m_star: float, feh: float) -> bool:
+    return (CALIBRATED_MSUN[0] <= m_star <= CALIBRATED_MSUN[1]
+            and CALIBRATED_FEH[0] <= feh <= CALIBRATED_FEH[1])
+
+
+@lru_cache(maxsize=1)
+def planet_grid_cells() -> tuple[tuple[dict, ...], ...]:
+    """Every grid cell, [Fe/H]-major, run once per process on 4 workers."""
+    jobs = [(m, f, PLANET_SYSTEMS, PLANET_SEED + i, {})
+            for i, (f, m) in enumerate((f, m) for f in PLANET_FEHS for m in PLANET_MASSES)]
+    with Pool(4) as pool:   # the machine budget: at most 4 workers
+        flat = pool.map(_planet_stats, jobs, chunksize=1)
+    return tuple(tuple(flat[i * len(PLANET_MASSES):(i + 1) * len(PLANET_MASSES)])
+                 for i in range(len(PLANET_FEHS)))
+
+
+@lru_cache(maxsize=1)
+def planet_sensitivity_cells() -> dict[str, tuple[dict, ...]]:
+    """The key cells under each sensitivity variant, the same seed per cell in every variant."""
+    jobs = [(m, f, PLANET_SYSTEMS, PLANET_SEED + k, params)
+            for params in SENSITIVITY.values() for k, (m, f) in enumerate(SENSITIVITY_CELLS)]
+    with Pool(4) as pool:
+        flat = pool.map(_planet_stats, jobs, chunksize=1)
+    n = len(SENSITIVITY_CELLS)
+    return {name: tuple(flat[i * n:(i + 1) * n]) for i, name in enumerate(SENSITIVITY)}
+
+
+def planet_conclusions() -> list[dict]:
+    """Statements about the population, each labelled `prediction` when it holds under every
+    sensitivity variant and `parameter-sensitive` otherwise."""
+    runs = planet_sensitivity_cells()
+    giants = {name: [c["hosts"]["gas giant"] for c in cells] for name, cells in runs.items()}
+    rises = [g[0] < g[1] < g[2] for g in giants.values()]
+    fewer = [g[3] < g[1] for g in giants.values()]
+    solar = [g[1] for g in giants.values()]
+    m_dwarf = [g[3] for g in giants.values()]
+
+    def label(holds):
+        return "prediction" if all(holds) else "parameter-sensitive"
+    return [
+        {"statement": "Gas giants become more common as [Fe/H] rises (1 M☉: -0.5, 0.0, +0.3)",
+         "label": label(rises)},
+        {"statement": "Gas giants are rarer around 0.5 M☉ stars than around 1 M☉ stars at solar "
+                      "[Fe/H]", "label": label(fewer)},
+        {"statement": f"Share of 1 M☉, solar-[Fe/H] systems with a gas giant: {min(solar):.2f}-"
+                      f"{max(solar):.2f} across the sensitivity runs",
+         "label": "parameter-sensitive" if max(solar) - min(solar) > 0.05 else "prediction"},
+        {"statement": f"Share of 0.5 M☉, solar-[Fe/H] systems with a gas giant: {min(m_dwarf):.3f}"
+                      f"-{max(m_dwarf):.3f} across the sensitivity runs",
+         "label": "parameter-sensitive" if max(m_dwarf) - min(m_dwarf) > 0.05 else "prediction"}
+    ] + [{"statement": f"Survey check, {c['name']}: model {c['model']:.3g}, survey {c['survey']:.3g} "
+                       f"({c['source']}; {c['tolerance']}): {'pass' if c['passed'] else 'fail'}",
+          "label": "observational constraint"} for c in planet_survey_checks()]
+
+
+def planet_grid(p) -> dict:
+    rows = planet_grid_cells()
+
+    def heat(title, value, label, log=False):
+        return export.build_panel(
+            title=title, kind="heatmap", x_values=PLANET_MASSES, x_label="Star mass (M☉)",
+            y_label="[Fe/H]", value_label=label, log_x=True, log_values=log,
+            rows=[export.build_row(label=f"{f:+.3g}", y=f, values=[value(c) for c in row],
+                                   provenance=["predicted"] * len(row))
+                  for f, row in zip(PLANET_FEHS, rows)])
+    sun = int(np.argmin(np.abs(np.log(np.array(PLANET_MASSES)))))
+    return export.build_experiment(
+        name="planet-grid", title="Planet populations by star mass and metallicity",
+        summary=(f"Ida & Lin's population synthesis (Paper VII gas phase, 2008a seeding): "
+                 f"{PLANET_SYSTEMS:,} disks per cell, 15 seeds each, seeds {PLANET_SEED}+cell "
+                 f"index. Defaults: C1 = {planet_population.C1_DEFAULT}, α = "
+                 f"{planet_population.ALPHA_DEFAULT:g}, disk mass ∝ M★, f_g spread 1 dex, τ_disk "
+                 "1-10 Myr. Planets are bodies of at least "
+                 f"{planet_population.M_MIN_PLANET} M⊕ after giant impacts to 1 Gyr (Ida & Lin 2004a "
+                 "eq. 24 within each seed's annulus; orbit crossing and mergers between seeds, "
+                 "Ida & Lin 2010); migrating embryos park in resonant convoys from 0.04 AU. Inside the calibration range (0.2-1.5 M☉, [Fe/H] "
+                 "-0.5 to +0.5) cells are predictions; below [Fe/H] -0.5 they are extrapolations. "
+                 "Survey comparisons are in the planet-surveys experiment."),
+        panels=[heat("Systems with a gas giant", lambda c: c["hosts"]["gas giant"], "share"),
+                heat("Planets per star (≥ 0.1 M⊕)", lambda c: c["per_star"], "planets"),
+                export.build_panel(
+                    title=f"Systems hosting each class around a {PLANET_MASSES[sun]} M☉ star",
+                    kind="curves", x_values=PLANET_FEHS, x_label="[Fe/H]", y_label="share",
+                    value_label="share",
+                    rows=[export.build_row(label=k, values=[r[sun]["hosts"][k] for r in rows],
+                                           provenance=["predicted"] * len(rows))
+                          for k in PLANET_CLASSES])])
+
+
+def planet_sensitivity(p) -> dict:
+    runs = planet_sensitivity_cells()
+    rows, holds = [], {}
+    for name, cells in runs.items():
+        g = [c["hosts"]["gas giant"] for c in cells]
+        rises = g[0] < g[1] < g[2]          # more giants at higher [Fe/H] (1 M☉)
+        fewer = g[3] < g[1]                 # fewer giants around 0.5 M☉ than 1 M☉
+        holds[name] = (rises, fewer)
+        n = len(cells)
+        rows.append(export.build_row(
+            label=name, values=[*g, cells[1]["per_star"], np.nan, np.nan],
+            labels=[None] * (n + 1) + ["yes" if rises else "no", "yes" if fewer else "no"],
+            provenance=["predicted"] * (n + 1) + [None, None]))
+    columns = [f"giant share {m} M☉ {f:+.1f}" for m, f in SENSITIVITY_CELLS] + [
+        "planets/star 1 M☉ 0.0", "giants rise with [Fe/H]", "fewer giants at 0.5 M☉"]
+    robust = [c for c, k in (("giants rise with [Fe/H]", 0), ("fewer giants at 0.5 M☉", 1))
+              if all(h[k] for h in holds.values())]
+    return export.build_experiment(
+        name="planet-sensitivity", title="Which planet-population conclusions survive the "
+                                         "parameter changes",
+        summary=(f"Each row changes one default; {PLANET_SYSTEMS:,} disks per cell, the same seed "
+                 "per cell in every row. Conclusions that hold in every row: "
+                 + (", ".join(robust) if robust else "none") + ". The rest are parameter-sensitive."),
+        panels=[export.build_panel(title="Sensitivity runs", kind="table", rows=rows,
+                                   columns=columns)])
+
+
+SURVEY_FEHS = (-0.5, -0.4, -0.25, 0.0, 0.25, 0.4, 0.5)   # 1 M☉, for the survey slopes
+
+
+@lru_cache(maxsize=1)
+def planet_survey_cells() -> tuple[dict, ...]:
+    """A solar-mass star at the surveys' metallicities (1 M☉ is not on the grid)."""
+    jobs = [(1.0, f, PLANET_SYSTEMS, PLANET_SEED + 1000 + k, {"survey_only": True})
+            for k, f in enumerate(SURVEY_FEHS)]
+    with Pool(4) as pool:
+        return tuple(pool.map(_planet_stats, jobs, chunksize=1))
+
+
+def planet_survey_checks() -> list[dict]:
+    """Each Validation check: the model's number, the survey's, the tolerance and pass or fail."""
+    one = {c["feh"]: c["survey"] for c in planet_survey_cells()}
+    solar_row = planet_grid_cells()[PLANET_FEHS.index(0.0)]
+    by_mass = [(c["m_star"], c["survey"]) for c in solar_row if c["m_star"] >= 0.45]
+    giants = [one[f]["rv_giant_share"] for f in SURVEY_FEHS]
+    beta = surveys.slope(SURVEY_FEHS, giants)
+    alpha = surveys.slope(np.log10([m for m, _ in by_mass]), [s["rv_giant_share"] for _, s in by_mass])
+    low = by_mass[0]
+    twin = one[0.0]["rv_giant_share"]
+    warm = [f for f in SURVEY_FEHS if abs(f) <= 0.4]
+    se = one[0.0]["warm_super_earths_per_100"]
+    se_beta = surveys.slope(warm, [one[f]["warm_super_earths_per_100"] for f in warm])
+    sn_ratio = one[0.4]["warm_sub_neptunes_per_100"] / max(one[-0.4]["warm_sub_neptunes_per_100"], 1e-9)
+    b_lo, b_hi = surveys.BETA_GIANT_RANGE
+    a_lo, a_hi = surveys.ALPHA_RANGE
+    se_lo = surveys.PETIGURA_SE_BETA - surveys.SE_BETA_SIGMA * surveys.PETIGURA_SE_BETA_ERR
+    se_hi = surveys.PETIGURA_SE_BETA + surveys.SE_BETA_SIGMA * surveys.PETIGURA_SE_BETA_ERR
+
+    def check(name, model, survey, tolerance, passed, source):
+        return {"name": name, "model": model, "survey": survey, "tolerance": tolerance,
+                "passed": bool(passed), "source": source}
+    return [
+        check("Giant planets against [Fe/H]: slope β of log share (1 M☉, -0.5 to +0.5)", beta,
+              surveys.FISCHER_VALENTI_BETA, f"{b_lo:.1f} ≤ β ≤ {b_hi:.1f} (between the two surveys, "
+              "±0.4)", b_lo <= beta <= b_hi, "Fischer & Valenti 2005; Johnson et al. 2010"),
+        check(f"Giant planets against star mass: exponent α ({by_mass[0][0]}-{by_mass[-1][0]} M☉, "
+              "solar [Fe/H])", alpha, surveys.JOHNSON_ALPHA,
+              f"{a_lo} ≤ α ≤ {a_hi}", a_lo <= alpha <= a_hi, "Johnson et al. 2010"),
+        check(f"Giant share at {low[0]} M☉, solar [Fe/H]", low[1]["rv_giant_share"],
+              surveys.JOHNSON_AT[0.5], "within a factor 2 of 3.5%",
+              0.5 <= low[1]["rv_giant_share"] / surveys.JOHNSON_AT[0.5] <= 2,
+              "Johnson et al. 2010"),
+        check("Solar twin: share with a 0.3-10 M_J planet at P = 2-2,000 d", twin,
+              surveys.CUMMING_SHARE, f"within a factor {surveys.TWIN_FACTOR} of 10.5%",
+              1 / surveys.TWIN_FACTOR <= twin / surveys.CUMMING_SHARE <= surveys.TWIN_FACTOR,
+              "Cumming et al. 2008"),
+        check("Warm super-Earths per 100 stars (1.0-1.7 R⊕, 10-100 d), solar [Fe/H]", se,
+              surveys.PETIGURA_SE_PER_100, f"within a factor {surveys.SE_LEVEL_FACTOR:g} of 20",
+              1 / surveys.SE_LEVEL_FACTOR <= se / surveys.PETIGURA_SE_PER_100
+              <= surveys.SE_LEVEL_FACTOR, "Petigura et al. 2018"),
+        check("Warm super-Earths against [Fe/H]: slope β (-0.4 to +0.4)", se_beta,
+              surveys.PETIGURA_SE_BETA, f"{se_lo:.1f} ≤ β ≤ {se_hi:.1f} (2σ)",
+              se_lo <= se_beta <= se_hi, "Petigura et al. 2018"),
+        check("Warm sub-Neptunes (1.7-4.0 R⊕): ratio from [Fe/H] -0.4 to +0.4", sn_ratio, 2.0,
+              "≥ √2 (at least half of the survey's doubling, in log)", sn_ratio >= np.sqrt(2),
+              "Petigura et al. 2018; Buchhave et al. 2012"),
+    ]
+
+
+def planet_surveys(p) -> dict:
+    checks = planet_survey_checks()
+    one = {c["feh"]: c["survey"] for c in planet_survey_cells()}
+    solar_row = planet_grid_cells()[PLANET_FEHS.index(0.0)]
+    rows = [export.build_row(label=c["name"], values=[c["model"], c["survey"], np.nan],
+                             labels=[None, None, "pass" if c["passed"] else "fail"],
+                             provenance=["predicted", None, None]) for c in checks]
+    passed = sum(c["passed"] for c in checks)
+    return export.build_experiment(
+        name="planet-surveys", title="The planet population against surveys",
+        summary=(f"{passed} of {len(checks)} checks pass. The model's planets are cut as each survey "
+                 "cuts its own (mass and period for radial-velocity giants, Chen & Kipping radius and "
+                 "period for Kepler's small planets); surveys check the model and never enter it. "
+                 "Tolerances are Stellar-Forge choices: "
+                 + "; ".join(f"{c['source']}: {c['tolerance']}" for c in checks) + "."),
+        panels=[
+            export.build_panel(title="Survey checks", kind="table", rows=rows,
+                               columns=["model", "survey", "result"]),
+            export.build_panel(
+                title="Share of 1 M☉ systems with a 0.3-10 M_J planet at P = 2-2,000 d",
+                kind="curves", x_values=SURVEY_FEHS, x_label="[Fe/H]", y_label="share",
+                value_label="share", log_values=True,
+                rows=[export.build_row(label="any composition (as surveys see it)",
+                                       values=[one[f]["rv_giant_share"] for f in SURVEY_FEHS],
+                                       provenance=["predicted"] * len(SURVEY_FEHS)),
+                      export.build_row(label="gas giants only (f_env ≥ 0.5)",
+                                       values=[one[f]["rv_giant_share_gas_giants"]
+                                               for f in SURVEY_FEHS],
+                                       provenance=["predicted"] * len(SURVEY_FEHS)),
+                      export.build_row(label="Fischer & Valenti 2005 shape, through the model at 0.0",
+                                       values=[one[0.0]["rv_giant_share"] * 10 ** (2 * f)
+                                               for f in SURVEY_FEHS],
+                                       provenance=["derived"] * len(SURVEY_FEHS))]),
+            export.build_panel(
+                title="The same cut by star mass, solar [Fe/H]", kind="curves",
+                x_values=PLANET_MASSES, x_label="Star mass (M☉)", y_label="share",
+                value_label="share", log_x=True,
+                rows=[export.build_row(label="any composition",
+                                       values=[c["survey"]["rv_giant_share"] for c in solar_row],
+                                       provenance=["predicted"] * len(solar_row)),
+                      export.build_row(label="gas giants only",
+                                       values=[c["survey"]["rv_giant_share_gas_giants"]
+                                               for c in solar_row],
+                                       provenance=["predicted"] * len(solar_row))])])
+
+
+def export_planets(meta: dict) -> Path:
+    """The Planets view's files: planets/population.json and one systems file per cell."""
+    cells, flat = [], [c for row in planet_grid_cells() for c in row]
+    for i, c in enumerate(flat):
+        calibration = "prediction" if _calibrated(c["m_star"], c["feh"]) else "extrapolation"
+        name = f"systems_{i:03d}.json"
+        export.write_document(export.build_document(meta, systems=export.build_systems(
+            m_star_msun=c["m_star"], feh=c["feh"], seed=c["seed"], calibration=calibration,
+            a_ice_au=c["a_ice"], systems=c["samples"])), WEB_PLANETS / name)
+        cells.append(export.build_population_cell(
+            m_star_msun=c["m_star"], feh=c["feh"], n_systems=c["n"], seed=c["seed"],
+            calibration=calibration, host_share=c["hosts"], planets_per_star=c["per_star"],
+            systems_with_count=c["counts"], a_ice_au=c["a_ice"], systems_file=f"planets/{name}"))
+    out = WEB_PLANETS / "population.json"
+    export.write_document(export.build_document(meta, population=export.build_population(
+        star_masses_msun=PLANET_MASSES, feh_values=PLANET_FEHS,
+        calibration_mass_msun=CALIBRATED_MSUN, calibration_feh=CALIBRATED_FEH, cells=cells,
+        conclusions=planet_conclusions())), out)
+    return out
+
+
+PLANET_EXPERIMENTS = {"planet-grid": planet_grid, "planet-sensitivity": planet_sensitivity,
+                      "planet-surveys": planet_surveys}
+
+
 # ---- Figures --------------------------------------------------------------------------------
 
 def figure(experiment: dict, path: Path) -> None:
@@ -526,7 +831,36 @@ def figure(experiment: dict, path: Path) -> None:
 
 # ---- Running --------------------------------------------------------------------------------
 
+def planet_meta() -> dict:
+    return export.build_meta(
+        dataset="none: a semi-analytic model, no observational data enters the predictions",
+        models={"planets": "Ida, Lin & Nagasawa 2013 gas phase (core growth, disk-limited gas "
+                           "accretion with gap taper, type I with C1, type II from the viscous "
+                           "gap mass); 15 seeds per disk plus next-generation seeds (Ida & Lin "
+                           "2008a, 2010); resonant convoys and giant impacts after the gas to "
+                           "1 Gyr (Ida & Lin 2010; 2004a eq. 24)",
+                "disks": "f_g,0 log-normal (1 dex) centred on M★ (disk mass roughly linear in M★, "
+                         "Andrews et al. 2013), kept within 0.1-10 times the centre (Ida, Lin & "
+                         "Nagasawa 2013); f_d,0 = f_g,0 10^[Fe/H]; τ_disk log-uniform 1-10 Myr",
+                "classes": "ordered rules on mass, envelope fraction and core ice",
+                "radius": "Chen & Kipping 2017 mean mass-radius relation, for display"},
+        inputs={"systems_per_cell": float(PLANET_SYSTEMS), "seed": float(PLANET_SEED),
+                "c1": planet_population.C1_DEFAULT, "alpha": planet_population.ALPHA_DEFAULT,
+                "f_g_sigma_dex": planet_population.F_G_SIGMA_DEX,
+                "tau_disk_min_yr": planet_population.TAU_DISK_RANGE_YR[0],
+                "tau_disk_max_yr": planet_population.TAU_DISK_RANGE_YR[1],
+                "steps_per_dex": float(planet_population.STEPS_PER_DEX),
+                "m_min_planet_mearth": planet_population.M_MIN_PLANET},
+        reference_keys=["IdaLin2004a", "IdaLin2004b", "IdaLin2005", "IdaLin2008a",
+                        "IdaLin2010", "IdaLinNagasawa2013", "Hayashi1981", "KokuboIda1998", "Ikoma2000", "Andrews2013",
+                        "ChenKipping2017", "OwenWu2017"],
+        seed=PLANET_SEED, created=export.git_commit_time())
+
+
 def result_document(name: str, params: dict) -> dict:
+    if name in PLANET_EXPERIMENTS:
+        meta = planet_meta()
+        return export.build_document(meta, experiment=PLANET_EXPERIMENTS[name](params))
     if name in STRUCTURE_EXPERIMENTS:
         meta = export.build_meta(
             dataset="MIST v1.2 zero-age stars (EEP 202) for comparison; OPAL and Ferguson et al. "
@@ -585,7 +919,8 @@ def run(name: str, params: dict, export_web: bool = False) -> Path:
 
 
 def parse(argv: list[str]) -> tuple[list[str], dict, bool]:
-    if not argv or argv[0] not in (*EXPERIMENTS, *STRUCTURE_EXPERIMENTS, "all"):
+    if not argv or argv[0] not in (*EXPERIMENTS, *STRUCTURE_EXPERIMENTS, *PLANET_EXPERIMENTS,
+                                   "all", "planets"):
         raise SystemExit(__doc__)
     params, export_web = dict(DEFAULTS), False
     for arg in argv[1:]:
@@ -597,7 +932,7 @@ def parse(argv: list[str]) -> tuple[list[str], dict, bool]:
         else:
             raise SystemExit(f"unknown option {arg!r}\n{__doc__}")
     feh_grid(params["feh"])  # fails early on a malformed range
-    names = list(EXPERIMENTS) if argv[0] == "all" else [argv[0]]
+    names = {"all": list(EXPERIMENTS), "planets": list(PLANET_EXPERIMENTS)}.get(argv[0], [argv[0]])
     return names, params, export_web
 
 
@@ -607,6 +942,8 @@ def main(argv: list[str]) -> None:
         start = time.perf_counter()
         out = run(name, params, export_web)
         print(f"{name}: {out.relative_to(ROOT)} ({time.perf_counter() - start:.1f} s)", flush=True)
+    if export_web and "planet-grid" in names:
+        print(f"planets: {export_planets(planet_meta()).relative_to(ROOT)}", flush=True)
 
 
 if __name__ == "__main__":

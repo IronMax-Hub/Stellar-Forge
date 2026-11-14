@@ -64,7 +64,9 @@ describe("data contract", () => {
     delete empty.experiment;
     delete empty.polytropes;
     delete empty.profiles;
-    expect(() => parseDocument(empty)).toThrow(/grid, an experiment, a polytropes or a profiles/);
+    delete empty.population;
+    delete empty.systems;
+    expect(() => parseDocument(empty)).toThrow(/grid, an experiment, a polytropes, a profiles, a population or a systems/);
   });
 
   it("reads zero-age profiles, allows no MIST star, and rejects uneven arrays", () => {
@@ -84,5 +86,18 @@ describe("data contract", () => {
     const uneven = fixture();
     ((uneven.polytropes.models as Record<string, number[]>[])[0].mass_frac).pop();
     expect(() => parseDocument(uneven)).toThrow(/models\[0\]\.mass_frac/);
+  });
+
+  it("reads the planet population and sample systems, and rejects bad counts and classes", () => {
+    const doc = parseDocument(fixture());
+    expect(doc.population!.cells[0].host_share["gas giant"]).toBe(0.25);
+    expect(doc.systems!.systems[0].planets[1].class).toBe("gas giant");
+    expect(doc.systems!.systems[1].planets).toHaveLength(0);
+    const counts = fixture();
+    ((counts.population.cells as Record<string, number[]>[])[0].systems_with_count).push(1);
+    expect(() => parseDocument(counts)).toThrow(/systems_with_count/);
+    const odd = fixture();
+    ((odd.systems.systems as { planets: Record<string, unknown>[] }[])[0].planets[0]).class = "hot Jupiter";
+    expect(() => parseDocument(odd)).toThrow(/planets\[0\]\.class/);
   });
 });

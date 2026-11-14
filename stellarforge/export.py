@@ -11,6 +11,7 @@ import numpy as np
 
 from . import SCHEMA_VERSION, __version__, evolution, remnants, structure
 from .colour import temperature_to_rgb
+from .planets.classify import CLASSES
 
 PROVENANCE = ("published", "interpolated", "substituted", "derived", "predicted")
 TRACK_ARRAYS = ("age_yr", "mass_now_msun", "log_l_lsun", "log_teff_k", "log_r_rsun", "phase",
@@ -177,6 +178,80 @@ def build_experiment(*, name: str, title: str, summary: str, panels: list[dict])
     return {"name": name, "title": title, "summary": summary, "panels": panels}
 
 
+# ---- Phase 5: planet populations ------------------------------------------------------------
+
+PLANET_CLASSES = CLASSES
+CALIBRATION = ("observational constraint", "prediction", "parameter-sensitive", "extrapolation")
+CORES = ("ice-rich", "rock-dominated")
+
+
+def _check(value, allowed, what):
+    if value not in allowed:
+        raise ValueError(f"{what} must be one of {allowed}, got {value!r}")
+    return value
+
+
+def build_population_cell(*, m_star_msun: float, feh: float, n_systems: int, seed: int,
+                          calibration: str, host_share: dict, planets_per_star: float,
+                          systems_with_count: list[int], a_ice_au: float,
+                          systems_file: str) -> dict:
+    """One grid cell's statistics. host_share: share of systems with at least one planet of each
+    class; systems_with_count[k]: systems with exactly k planets."""
+    if set(host_share) != set(PLANET_CLASSES):
+        raise ValueError(f"host_share needs one share per class {PLANET_CLASSES}")
+    if sum(systems_with_count) != n_systems:
+        raise ValueError("systems_with_count must add up to n_systems")
+    return {"m_star_msun": float(m_star_msun), "feh": float(feh), "n_systems": int(n_systems),
+            "seed": int(seed), "calibration": _check(calibration, CALIBRATION, "calibration"),
+            "provenance": "predicted",
+            "host_share": {k: float(f"{host_share[k]:.5g}") for k in PLANET_CLASSES},
+            "planets_per_star": float(f"{planets_per_star:.5g}"),
+            "systems_with_count": [int(c) for c in systems_with_count],
+            "a_ice_au": float(f"{a_ice_au:.5g}"), "systems_file": systems_file}
+
+
+def build_population(*, star_masses_msun, feh_values, calibration_mass_msun, calibration_feh,
+                     cells: list[dict], conclusions: list[dict]) -> dict:
+    """The planet grid: one cell per star mass and [Fe/H] ([Fe/H]-major order); the view's
+    selectors snap to star_masses_msun and feh_values. conclusions: {statement, label}."""
+    if len(cells) != len(star_masses_msun) * len(feh_values):
+        raise ValueError("one cell per star mass and [Fe/H]")
+    for c in conclusions:
+        _check(c["label"], CALIBRATION, "conclusion label")
+    return {"star_masses_msun": [float(m) for m in star_masses_msun],
+            "feh_values": [float(f) for f in feh_values], "classes": list(PLANET_CLASSES),
+            "calibration_mass_msun": [float(x) for x in calibration_mass_msun],
+            "calibration_feh": [float(x) for x in calibration_feh], "cells": cells,
+            "conclusions": [{"statement": c["statement"], "label": c["label"]}
+                            for c in conclusions]}
+
+
+def build_planet(*, planet_class: str, mass_mearth: float, radius_rearth: float, a_au: float,
+                 a_form_au: float, f_env: float, ice_rich: bool) -> dict:
+    """One planet when the gas disk is gone. Its radius is derived (Chen & Kipping 2017); the rest
+    is the model's prediction."""
+    return {"class": _check(planet_class, PLANET_CLASSES, "class"),
+            "mass_mearth": float(f"{mass_mearth:.5g}"),
+            "radius_rearth": float(f"{radius_rearth:.4g}"), "a_au": float(f"{a_au:.5g}"),
+            "a_form_au": float(f"{a_form_au:.5g}"), "f_env": float(f"{f_env:.4g}"),
+            "core": CORES[0] if ice_rich else CORES[1], "provenance": "predicted",
+            "radius_provenance": "derived"}
+
+
+def build_systems(*, m_star_msun: float, feh: float, seed: int, calibration: str, a_ice_au: float,
+                  systems: list[dict]) -> dict:
+    """Sample systems of one cell; each is {index, f_g0, f_d0, tau_disk_yr, planets}, planets
+    from the inside out."""
+    return {"m_star_msun": float(m_star_msun), "feh": float(feh), "seed": int(seed),
+            "calibration": _check(calibration, CALIBRATION, "calibration"),
+            "a_ice_au": float(f"{a_ice_au:.5g}"),
+            "systems": [{"index": int(s["index"]), "f_g0": float(f"{s['f_g0']:.4g}"),
+                         "f_d0": float(f"{s['f_d0']:.4g}"),
+                         "tau_disk_yr": float(f"{s['tau_disk_yr']:.4g}"),
+                         "planets": sorted(s["planets"], key=lambda p: p["a_au"])}
+                        for s in systems]}
+
+
 def build_grid(*, feh: float, feh_values, mass_values_msun, files: list[str],
                tracks: list[dict]) -> dict:
     """One [Fe/H] slice of the web grid; the sliders snap to feh_values and mass_values_msun."""
@@ -239,10 +314,12 @@ def build_profile(*, mass_msun: float, feh: float, method: str, flags: list[str]
 
 
 def build_document(meta: dict, grid: dict | None = None, experiment: dict | None = None,
-                   polytropes: dict | None = None, profiles: dict | None = None) -> dict:
-    """meta plus the blocks this document carries (a grid, an experiment, polytropes, profiles)."""
+                   polytropes: dict | None = None, profiles: dict | None = None,
+                   population: dict | None = None, systems: dict | None = None) -> dict:
+    """meta plus the blocks this document carries (a grid, an experiment, polytropes, profiles,
+    a planet population or one cell's sample systems)."""
     blocks = {"grid": grid, "experiment": experiment, "polytropes": polytropes,
-              "profiles": profiles}
+              "profiles": profiles, "population": population, "systems": systems}
     return {"meta": meta, **{k: v for k, v in blocks.items() if v is not None}}
 
 
