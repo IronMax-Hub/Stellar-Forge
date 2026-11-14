@@ -39,6 +39,7 @@ from .growth import (
     kelvin_helmholtz_time_yr,
 )
 from .migration import C1_DEFAULT, INNER_EDGE_AU, type1_rate, type2_rate
+from .radius import radius_rearth
 
 SEEDS = 15                      # per disk, log-uniform in SEED_RANGE_AU (Ida & Lin 2008a §3.3)
 SEED_RANGE_AU = (0.05, 50.0)
@@ -175,8 +176,8 @@ def merge_inner_edge(state: dict) -> dict:
 
 
 def planets(state: dict) -> dict:
-    """The surviving planets (M_p ≥ M_MIN_PLANET) as flat arrays with their system index and
-    class (classify.py)."""
+    """The surviving planets (M_p ≥ M_MIN_PLANET) as flat arrays with their system index, class
+    (classify.py) and display radius (radius.py)."""
     m = state["core_mearth"] + state["env_mearth"]
     keep = m >= M_MIN_PLANET
     system = np.nonzero(keep)[0]
@@ -185,7 +186,7 @@ def planets(state: dict) -> dict:
     ice = state["ice_rich"][keep]
     return {"system": system, "mass_mearth": mass, "f_env": f_env, "ice_rich": ice,
             "a_au": state["a_au"][keep], "a_form_au": state["a_form_au"][keep],
-            "class": classify(mass, f_env, ice)}
+            "radius_rearth": radius_rearth(mass), "class": classify(mass, f_env, ice)}
 
 
 def run_cell(m_star_msun: float, feh: float, n_systems: int, seed: int, **params) -> dict:
@@ -196,5 +197,6 @@ def run_cell(m_star_msun: float, feh: float, n_systems: int, seed: int, **params
                        p["f_g_sigma_dex"], p["tau_disk_range_yr"])
     state = merge_inner_edge(evolve(disks, m_star_msun, p["c1"], p["alpha"], p["steps_per_dex"]))
     return {"disks": disks, "planets": planets(state), "n_systems": n_systems,
+            "a_ice_au": state["a_ice_au"],
             "m_star_msun": m_star_msun, "feh": feh, "seed": seed, "params": p}
 

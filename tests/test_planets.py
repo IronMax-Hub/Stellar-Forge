@@ -158,3 +158,15 @@ def test_giants_need_metals():
         return np.unique(p["system"][p["class"] == "gas giant"]).size
     assert hosts(-2.0) == 0
     assert hosts(-0.5) < hosts(0.0) < hosts(0.5)
+
+
+def test_chen_kipping_radii():
+    from stellarforge.planets import radius
+    assert radius.radius_rearth(1.0) == pytest.approx(1.008)                 # Table 1 constant
+    for m in (2.04, 131.6):                                                  # segments meet
+        below, above = radius.radius_rearth([m * (1 - 1e-9), m * (1 + 1e-9)])
+        assert below == pytest.approx(above, rel=1e-3)
+    # A Jupiter mass gives 13.8 R⊕, above Jupiter's 11.2: the fit includes inflated hot Jupiters
+    assert radius.radius_rearth(317.83) == pytest.approx(13.8, rel=0.01)
+    with pytest.raises(ValueError):
+        radius.radius_rearth(0.0)

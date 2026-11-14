@@ -3,8 +3,8 @@
 // change on the Python side fails loudly here instead of drawing nonsense.
 
 import { PROVENANCES, SCHEMA_VERSION, TRACK_ARRAYS } from "./types";
-import { PANEL_KINDS, POLYTROPE_ARRAYS, PROFILE_ARRAYS, PROFILE_SCALARS, REMNANT_TYPES } from "./types";
-import type { Cooling, Experiment, Grid, Meta, Panel, PanelKind, PanelRow, MistZams, Polytrope, Polytropes, Profile, Provenance, Reference, Remnant, RemnantType, Rgb, StellarDocument, Track, TrackArray } from "./types";
+import { CALIBRATIONS, CORES, PANEL_KINDS, PLANET_CLASSES, POLYTROPE_ARRAYS, PROFILE_ARRAYS, PROFILE_SCALARS, REMNANT_TYPES } from "./types";
+import type { Calibration, Cooling, Experiment, PlanetClass, PlanetResult, PlanetSystem, Population, PopulationCell, Systems, Grid, Meta, Panel, PanelKind, PanelRow, MistZams, Polytrope, Polytropes, Profile, Provenance, Reference, Remnant, RemnantType, Rgb, StellarDocument, Track, TrackArray } from "./types";
 
 type Json = Record<string, unknown>;
 
@@ -278,11 +278,110 @@ function parseProfile(value: unknown, path: string): Profile {
   };
 }
 
+function oneOf<T extends string>(allowed: readonly T[]): (value: unknown, path: string) => T {
+  return (value, path) => {
+    const v = string(value, path) as T;
+    return allowed.includes(v) ? v : fail(path, `one of ${allowed.join(", ")}`);
+  };
+}
+const planetClass = oneOf<PlanetClass>(PLANET_CLASSES);
+const calibration = oneOf<Calibration>(CALIBRATIONS);
+
+function integer(value: unknown, path: string): number {
+  const n = number(value, path);
+  return Number.isInteger(n) ? n : fail(path, "an integer");
+}
+
+function pair(value: unknown, path: string): [number, number] {
+  const p = list(value, path, number);
+  return p.length === 2 ? [p[0], p[1]] : fail(path, "[low, high]");
+}
+
+function parseCell(value: unknown, path: string): PopulationCell {
+  const c = object(value, path);
+  const share = record(c.host_share, `${path}.host_share`, number);
+  for (const k of PLANET_CLASSES) if (!(k in share)) fail(`${path}.host_share`, `a share for ${k}`);
+  const cell: PopulationCell = {
+    m_star_msun: number(c.m_star_msun, `${path}.m_star_msun`),
+    feh: number(c.feh, `${path}.feh`),
+    n_systems: integer(c.n_systems, `${path}.n_systems`),
+    seed: integer(c.seed, `${path}.seed`),
+    calibration: calibration(c.calibration, `${path}.calibration`),
+    provenance: provenance(c.provenance, `${path}.provenance`),
+    host_share: share as Record<PlanetClass, number>,
+    planets_per_star: number(c.planets_per_star, `${path}.planets_per_star`),
+    systems_with_count: list(c.systems_with_count, `${path}.systems_with_count`, integer),
+    a_ice_au: number(c.a_ice_au, `${path}.a_ice_au`),
+    systems_file: string(c.systems_file, `${path}.systems_file`),
+  };
+  if (cell.systems_with_count.reduce((a, b) => a + b, 0) !== cell.n_systems) fail(`${path}.systems_with_count`, "counts adding up to n_systems");
+  return cell;
+}
+
+function parsePopulation(value: unknown): Population {
+  const p = object(value, "population");
+  const population: Population = {
+    star_masses_msun: list(p.star_masses_msun, "population.star_masses_msun", number),
+    feh_values: list(p.feh_values, "population.feh_values", number),
+    classes: list(p.classes, "population.classes", planetClass),
+    calibration_mass_msun: pair(p.calibration_mass_msun, "population.calibration_mass_msun"),
+    calibration_feh: pair(p.calibration_feh, "population.calibration_feh"),
+    cells: list(p.cells, "population.cells", parseCell),
+    conclusions: list(p.conclusions, "population.conclusions", (v, q) => {
+      const c = object(v, q);
+      return { statement: string(c.statement, `${q}.statement`), label: calibration(c.label, `${q}.label`) };
+    }),
+  };
+  if (population.cells.length !== population.star_masses_msun.length * population.feh_values.length) {
+    fail("population.cells", "one cell per star mass and [Fe/H]");
+  }
+  return population;
+}
+
+function parsePlanet(value: unknown, path: string): PlanetResult {
+  const p = object(value, path);
+  const num = (k: string) => number(p[k], `${path}.${k}`);
+  return {
+    class: planetClass(p.class, `${path}.class`),
+    mass_mearth: num("mass_mearth"),
+    radius_rearth: num("radius_rearth"),
+    a_au: num("a_au"),
+    a_form_au: num("a_form_au"),
+    f_env: num("f_env"),
+    core: oneOf(CORES)(p.core, `${path}.core`),
+    provenance: provenance(p.provenance, `${path}.provenance`),
+    radius_provenance: provenance(p.radius_provenance, `${path}.radius_provenance`),
+  };
+}
+
+function parseSystem(value: unknown, path: string): PlanetSystem {
+  const s = object(value, path);
+  return {
+    index: integer(s.index, `${path}.index`),
+    f_g0: number(s.f_g0, `${path}.f_g0`),
+    f_d0: number(s.f_d0, `${path}.f_d0`),
+    tau_disk_yr: number(s.tau_disk_yr, `${path}.tau_disk_yr`),
+    planets: list(s.planets, `${path}.planets`, parsePlanet),
+  };
+}
+
+function parseSystems(value: unknown): Systems {
+  const s = object(value, "systems");
+  return {
+    m_star_msun: number(s.m_star_msun, "systems.m_star_msun"),
+    feh: number(s.feh, "systems.feh"),
+    seed: integer(s.seed, "systems.seed"),
+    calibration: calibration(s.calibration, "systems.calibration"),
+    a_ice_au: number(s.a_ice_au, "systems.a_ice_au"),
+    systems: list(s.systems, "systems.systems", parseSystem),
+  };
+}
+
 /** A typed document from parsed JSON; throws if any field is missing or of the wrong type. */
 export function parseDocument(raw: unknown): StellarDocument {
   const doc = object(raw, "document");
-  if ([doc.grid, doc.experiment, doc.polytropes, doc.profiles].every((b) => b === undefined)) {
-    fail("document", "a grid, an experiment, a polytropes or a profiles block");
+  if ([doc.grid, doc.experiment, doc.polytropes, doc.profiles, doc.population, doc.systems].every((b) => b === undefined)) {
+    fail("document", "a grid, an experiment, a polytropes, a profiles, a population or a systems block");
   }
   return {
     meta: parseMeta(doc.meta),
@@ -292,5 +391,7 @@ export function parseDocument(raw: unknown): StellarDocument {
     ...(doc.profiles !== undefined && {
       profiles: { models: list(object(doc.profiles, "profiles").models, "profiles.models", parseProfile) },
     }),
+    ...(doc.population !== undefined && { population: parsePopulation(doc.population) }),
+    ...(doc.systems !== undefined && { systems: parseSystems(doc.systems) }),
   };
 }

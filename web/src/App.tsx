@@ -1,4 +1,4 @@
-// The app: Star Builder (Phases 1-2), Experiments (Phase 3) and Inside the Star (Phase 4).
+// The app: Star Builder (Phases 1-2), Experiments (Phase 3), Inside the Star (Phase 4) and Planets (Phase 5).
 // Star Builder: pick a mass and [Fe/H] from the exported grid and scrub a star's life, then see its
 // remnant. Every number shown comes from web/public/data, written by `python -m stellarforge.export
 // web`; this file only selects, scales and draws.
@@ -10,6 +10,7 @@ import { parseDocument } from "./data/loader";
 import type { Grid, Meta, Provenance, Remnant, Track } from "./data/types";
 import Experiments from "./Experiments";
 import InsideTheStar from "./InsideTheStar";
+import Planets from "./Planets";
 import { BLACK_HOLE_DISTANCE, BlackHoleView, START_ELEVATION_DEG } from "./rendering/blackHole/BlackHoleView";
 import { starDisplayCss } from "./rendering/starColour";
 
@@ -51,7 +52,7 @@ function prefetchAround({ grid }: GridFile) {
 
 const fmt = (x: number, digits = 4) => x.toPrecision(digits);
 
-type View = "star" | "experiments" | "inside";
+type View = "star" | "experiments" | "inside" | "planets";
 
 export default function App() {
   const [view, setView] = useState<View>("star");
@@ -67,10 +68,12 @@ export default function App() {
         <button aria-pressed={view === "star"} onClick={() => show("star")}>Star Builder</button>
         <button aria-pressed={view === "experiments"} onClick={() => show("experiments")}>Experiments</button>
         <button aria-pressed={view === "inside"} onClick={() => show("inside")}>Inside the Star</button>
+        <button aria-pressed={view === "planets"} onClick={() => show("planets")}>Planets</button>
       </nav>
       <div hidden={view !== "star"}><StarBuilder /></div>
       {opened.has("experiments") && <div hidden={view !== "experiments"}><Experiments /></div>}
       {opened.has("inside") && <div hidden={view !== "inside"}><InsideTheStar /></div>}
+      {opened.has("planets") && <div hidden={view !== "planets"}><Planets /></div>}
     </>
   );
 }

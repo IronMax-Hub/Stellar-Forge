@@ -12,7 +12,7 @@ FIXTURE = json.loads((Path(__file__).parent.parent / "contract" / "fixture.json"
 
 # Objects whose keys vary between documents (contract/README.md: "object of ..."); every value must
 # match the fixture's value kind.
-MAPS = {"inputs", "models", "phase_names"}
+MAPS = {"inputs", "models", "phase_names", "host_share"}
 # Fields that may be null: remnant values with no remnant or no MIST value, a row without y, no seed.
 NULLABLE = {"mass_msun", "radius_km", "cooling", "final_mass_msun", "he_core_mass_msun",
             "co_core_mass_msun", "y", "seed", "xi1", "density_concentration", "sun_rho_c_kg_m3",
@@ -20,7 +20,7 @@ NULLABLE = {"mass_msun", "radius_km", "cooling", "final_mass_msun", "he_core_mas
 # Lists whose items may be null: experiment cells without a number, word or provenance.
 NULLABLE_ITEMS = {"values", "labels", "provenance"}
 # Blocks a document may carry beside `meta`; the fixture holds them all.
-BLOCKS = {"grid", "experiment", "polytropes", "profiles"}
+BLOCKS = {"grid", "experiment", "polytropes", "profiles", "population", "systems"}
 
 
 def kind(value):
@@ -160,6 +160,31 @@ def test_profile_document_matches_fixture_shape():
     assert profile["mist"] is None
     with pytest.raises(ValueError):
         export.build_profile(**profile_kwargs(nabla=[1.0]))
+
+
+def test_planet_export_matches_fixture_shape(tmp_path, monkeypatch):
+    """A real (small) planet cell through the export: population.json and a systems file."""
+    from stellarforge import experiments
+    cells = [experiments._planet_stats((1.0, feh, 60, 3, {})) for feh in (0.0, 0.3)]
+    assert any(s["planets"] for c in cells for s in c["samples"])
+    fake_runs = {"defaults": tuple({"hosts": {"gas giant": g}, "per_star": 1.0}
+                                   for g in (0.1, 0.2, 0.3, 0.0))}
+    monkeypatch.setattr(experiments, "PLANET_MASSES", (1.0,))
+    monkeypatch.setattr(experiments, "PLANET_FEHS", (0.0, 0.3))
+    monkeypatch.setattr(experiments, "planet_grid_cells", lambda: ((cells[0],), (cells[1],)))
+    monkeypatch.setattr(experiments, "planet_sensitivity_cells", lambda: fake_runs)
+    monkeypatch.setattr(experiments, "WEB_PLANETS", tmp_path)
+    meta = export.build_meta(dataset="test", models={"planets": "test"}, inputs={"feh": 0.0},
+                             reference_keys=["IdaLin2004a"], seed=3)
+    population = json.loads(experiments.export_planets(meta).read_text())
+    assert_shape(population, FIXTURE)
+    assert [c["label"] for c in population["population"]["conclusions"][:2]] == ["prediction"] * 2
+    systems = json.loads((tmp_path / "systems_001.json").read_text())
+    assert_shape(systems, FIXTURE)
+    assert len(systems["systems"]["systems"]) == 60
+    with pytest.raises(ValueError):
+        export.build_planet(planet_class="hot Jupiter", mass_mearth=1, radius_rearth=1, a_au=1,
+                            a_form_au=1, f_env=0, ice_rich=False)
 
 
 def test_schema_version_matches():

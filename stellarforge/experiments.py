@@ -3,7 +3,8 @@
 Run: .venv/bin/python -m stellarforge.experiments <experiment> [options]
      experiments: lifetime-map, full-life-map, remnant-map, remnant-mass-curves, population,
                   sun-metallicities, all (the six above), zams-extension (Phase 4, ~11 minutes),
-                  planet-grid, planet-sensitivity (Phase 5, ~4 and ~2 minutes)
+                  planet-grid, planet-sensitivity (Phase 5, ~8 and ~2 minutes),
+                  planets (both; with --export also the Planets view's files)
      options: --feh=-4:0.5:0.1   [Fe/H] from:to:step (maps and population)
               --masses=200       log-spaced initial masses, 0.1-300 M☉
               --stars=1000000    stars drawn from the IMF (population)
@@ -497,13 +498,33 @@ SENSITIVITY = {"defaults": {}, "C1 = 0.03": {"c1": 0.03}, "C1 = 0.3": {"c1": 0.3
 SENSITIVITY_CELLS = ((1.0, -0.5), (1.0, 0.0), (1.0, 0.3), (0.5, 0.0))
 
 
+SAMPLE_SYSTEMS = 200     # exported per cell for the Planets view (build plan, step 5)
+WEB_PLANETS = export.WEB_DATA / "planets"
+
+
 def _planet_stats(args) -> dict:
-    """One cell's statistics: the share of systems hosting each class, and planets per star."""
+    """One cell's statistics: the share of systems hosting each class, planets per star, how many
+    systems have each number of planets and, for the default parameters, the first SAMPLE_SYSTEMS
+    systems (an unbiased sample: the disks are drawn at random)."""
     m_star, feh, n, seed, params = args
     cell = planet_population.run_cell(m_star, feh, n, seed, **params)
     p = cell["planets"]
     hosts = {k: np.unique(p["system"][p["class"] == k]).size / n for k in PLANET_CLASSES}
-    return {"m_star": m_star, "feh": feh, "hosts": hosts, "per_star": len(p["system"]) / n}
+    out = {"m_star": m_star, "feh": feh, "seed": seed, "n": n, "hosts": hosts,
+           "per_star": len(p["system"]) / n, "a_ice": cell["a_ice_au"],
+           "counts": np.bincount(np.bincount(p["system"], minlength=n)).tolist()}
+    if not params:
+        d = cell["disks"]
+        out["samples"] = [
+            {"index": i, "f_g0": d["f_g0"][i], "f_d0": d["f_d0"][i],
+             "tau_disk_yr": d["tau_disk_yr"][i],
+             "planets": [export.build_planet(
+                 planet_class=str(p["class"][j]), mass_mearth=p["mass_mearth"][j],
+                 radius_rearth=p["radius_rearth"][j], a_au=p["a_au"][j],
+                 a_form_au=p["a_form_au"][j], f_env=p["f_env"][j], ice_rich=bool(p["ice_rich"][j]))
+                 for j in np.flatnonzero(p["system"] == i)]}
+            for i in range(min(SAMPLE_SYSTEMS, n))]
+    return out
 
 
 def _calibrated(m_star: float, feh: float) -> bool:
@@ -511,13 +532,55 @@ def _calibrated(m_star: float, feh: float) -> bool:
             and CALIBRATED_FEH[0] <= feh <= CALIBRATED_FEH[1])
 
 
-def planet_grid(p) -> dict:
+@lru_cache(maxsize=1)
+def planet_grid_cells() -> tuple[tuple[dict, ...], ...]:
+    """Every grid cell, [Fe/H]-major, run once per process on 4 workers."""
     jobs = [(m, f, PLANET_SYSTEMS, PLANET_SEED + i, {})
             for i, (f, m) in enumerate((f, m) for f in PLANET_FEHS for m in PLANET_MASSES)]
     with Pool(4) as pool:   # the machine budget: at most 4 workers
         flat = pool.map(_planet_stats, jobs, chunksize=1)
-    rows = [flat[i * len(PLANET_MASSES):(i + 1) * len(PLANET_MASSES)]
-            for i in range(len(PLANET_FEHS))]
+    return tuple(tuple(flat[i * len(PLANET_MASSES):(i + 1) * len(PLANET_MASSES)])
+                 for i in range(len(PLANET_FEHS)))
+
+
+@lru_cache(maxsize=1)
+def planet_sensitivity_cells() -> dict[str, tuple[dict, ...]]:
+    """The key cells under each sensitivity variant, the same seed per cell in every variant."""
+    jobs = [(m, f, PLANET_SYSTEMS, PLANET_SEED + k, params)
+            for params in SENSITIVITY.values() for k, (m, f) in enumerate(SENSITIVITY_CELLS)]
+    with Pool(4) as pool:
+        flat = pool.map(_planet_stats, jobs, chunksize=1)
+    n = len(SENSITIVITY_CELLS)
+    return {name: tuple(flat[i * n:(i + 1) * n]) for i, name in enumerate(SENSITIVITY)}
+
+
+def planet_conclusions() -> list[dict]:
+    """Statements about the population, each labelled `prediction` when it holds under every
+    sensitivity variant and `parameter-sensitive` otherwise."""
+    runs = planet_sensitivity_cells()
+    giants = {name: [c["hosts"]["gas giant"] for c in cells] for name, cells in runs.items()}
+    rises = [g[0] < g[1] < g[2] for g in giants.values()]
+    fewer = [g[3] < g[1] for g in giants.values()]
+    solar = [g[1] for g in giants.values()]
+    m_dwarf = [g[3] for g in giants.values()]
+
+    def label(holds):
+        return "prediction" if all(holds) else "parameter-sensitive"
+    return [
+        {"statement": "Gas giants become more common as [Fe/H] rises (1 M☉: -0.5, 0.0, +0.3)",
+         "label": label(rises)},
+        {"statement": "Gas giants are rarer around 0.5 M☉ stars than around 1 M☉ stars at solar "
+                      "[Fe/H]", "label": label(fewer)},
+        {"statement": f"Share of 1 M☉, solar-[Fe/H] systems with a gas giant: {min(solar):.2f}-"
+                      f"{max(solar):.2f} across the sensitivity runs",
+         "label": "parameter-sensitive" if max(solar) - min(solar) > 0.05 else "prediction"},
+        {"statement": f"Share of 0.5 M☉, solar-[Fe/H] systems with a gas giant: {min(m_dwarf):.3f}"
+                      f"-{max(m_dwarf):.3f} across the sensitivity runs",
+         "label": "parameter-sensitive" if max(m_dwarf) - min(m_dwarf) > 0.05 else "prediction"}]
+
+
+def planet_grid(p) -> dict:
+    rows = planet_grid_cells()
 
     def heat(title, value, label, log=False):
         return export.build_panel(
@@ -550,19 +613,16 @@ def planet_grid(p) -> dict:
 
 
 def planet_sensitivity(p) -> dict:
-    jobs = [(m, f, PLANET_SYSTEMS, PLANET_SEED + k, params)
-            for params in SENSITIVITY.values() for k, (m, f) in enumerate(SENSITIVITY_CELLS)]
-    with Pool(4) as pool:
-        flat = pool.map(_planet_stats, jobs, chunksize=1)
-    n = len(SENSITIVITY_CELLS)
+    runs = planet_sensitivity_cells()
     rows, holds = [], {}
-    for i, name in enumerate(SENSITIVITY):
-        g = [c["hosts"]["gas giant"] for c in flat[i * n:(i + 1) * n]]
+    for name, cells in runs.items():
+        g = [c["hosts"]["gas giant"] for c in cells]
         rises = g[0] < g[1] < g[2]          # more giants at higher [Fe/H] (1 M☉)
         fewer = g[3] < g[1]                 # fewer giants around 0.5 M☉ than 1 M☉
         holds[name] = (rises, fewer)
+        n = len(cells)
         rows.append(export.build_row(
-            label=name, values=[*g, flat[i * n + 1]["per_star"], np.nan, np.nan],
+            label=name, values=[*g, cells[1]["per_star"], np.nan, np.nan],
             labels=[None] * (n + 1) + ["yes" if rises else "no", "yes" if fewer else "no"],
             provenance=["predicted"] * (n + 1) + [None, None]))
     columns = [f"giant share {m} M☉ {f:+.1f}" for m, f in SENSITIVITY_CELLS] + [
@@ -577,6 +637,27 @@ def planet_sensitivity(p) -> dict:
                  + (", ".join(robust) if robust else "none") + ". The rest are parameter-sensitive."),
         panels=[export.build_panel(title="Sensitivity runs", kind="table", rows=rows,
                                    columns=columns)])
+
+
+def export_planets(meta: dict) -> Path:
+    """The Planets view's files: planets/population.json and one systems file per cell."""
+    cells, flat = [], [c for row in planet_grid_cells() for c in row]
+    for i, c in enumerate(flat):
+        calibration = "prediction" if _calibrated(c["m_star"], c["feh"]) else "extrapolation"
+        name = f"systems_{i:03d}.json"
+        export.write_document(export.build_document(meta, systems=export.build_systems(
+            m_star_msun=c["m_star"], feh=c["feh"], seed=c["seed"], calibration=calibration,
+            a_ice_au=c["a_ice"], systems=c["samples"])), WEB_PLANETS / name)
+        cells.append(export.build_population_cell(
+            m_star_msun=c["m_star"], feh=c["feh"], n_systems=c["n"], seed=c["seed"],
+            calibration=calibration, host_share=c["hosts"], planets_per_star=c["per_star"],
+            systems_with_count=c["counts"], a_ice_au=c["a_ice"], systems_file=f"planets/{name}"))
+    out = WEB_PLANETS / "population.json"
+    export.write_document(export.build_document(meta, population=export.build_population(
+        star_masses_msun=PLANET_MASSES, feh_values=PLANET_FEHS,
+        calibration_mass_msun=CALIBRATED_MSUN, calibration_feh=CALIBRATED_FEH, cells=cells,
+        conclusions=planet_conclusions())), out)
+    return out
 
 
 PLANET_EXPERIMENTS = {"planet-grid": planet_grid, "planet-sensitivity": planet_sensitivity}
@@ -632,25 +713,33 @@ def figure(experiment: dict, path: Path) -> None:
 
 # ---- Running --------------------------------------------------------------------------------
 
+def planet_meta() -> dict:
+    return export.build_meta(
+        dataset="none: a semi-analytic model, no observational data enters the predictions",
+        models={"planets": "Ida & Lin 2004a growth, gas capture and type II migration; type I "
+                           "as C1 times Tanaka et al. 2002 (Ida & Lin 2008a); 15 seeds per "
+                           "disk (Ida & Lin 2008a)",
+                "disks": "f_g,0 log-normal (1 dex) centred on M★ (disk mass roughly linear in M★, "
+                         "Andrews et al. 2013), cut at 30; f_d,0 = f_g,0 10^[Fe/H]; τ_disk "
+                         "log-uniform 1-10 Myr",
+                "classes": "ordered rules on mass, envelope fraction and core ice",
+                "radius": "Chen & Kipping 2017 mean mass-radius relation, for display"},
+        inputs={"systems_per_cell": float(PLANET_SYSTEMS), "seed": float(PLANET_SEED),
+                "c1": planet_population.C1_DEFAULT, "alpha": planet_population.ALPHA_DEFAULT,
+                "f_g_sigma_dex": planet_population.F_G_SIGMA_DEX,
+                "tau_disk_min_yr": planet_population.TAU_DISK_RANGE_YR[0],
+                "tau_disk_max_yr": planet_population.TAU_DISK_RANGE_YR[1],
+                "steps_per_dex": float(planet_population.STEPS_PER_DEX),
+                "m_min_planet_mearth": planet_population.M_MIN_PLANET},
+        reference_keys=["IdaLin2004a", "IdaLin2004b", "IdaLin2005", "IdaLin2008a",
+                        "Hayashi1981", "KokuboIda1998", "Ikoma2000", "Andrews2013",
+                        "ChenKipping2017", "OwenWu2017"],
+        seed=PLANET_SEED, created=export.git_commit_time())
+
+
 def result_document(name: str, params: dict) -> dict:
     if name in PLANET_EXPERIMENTS:
-        meta = export.build_meta(
-            dataset="none: a semi-analytic model, no observational data enters the predictions",
-            models={"planets": "Ida & Lin 2004a growth, gas capture and type II migration; type I "
-                               "as C1 times Tanaka et al. 2002 (Ida & Lin 2008a); 15 seeds per "
-                               "disk (Ida & Lin 2008a)",
-                    "classes": "ordered rules on mass, envelope fraction and core ice"},
-            inputs={"systems_per_cell": float(PLANET_SYSTEMS), "seed": float(PLANET_SEED),
-                    "c1": planet_population.C1_DEFAULT, "alpha": planet_population.ALPHA_DEFAULT,
-                    "f_g_sigma_dex": planet_population.F_G_SIGMA_DEX,
-                    "tau_disk_min_yr": planet_population.TAU_DISK_RANGE_YR[0],
-                    "tau_disk_max_yr": planet_population.TAU_DISK_RANGE_YR[1],
-                    "steps_per_dex": float(planet_population.STEPS_PER_DEX),
-                    "m_min_planet_mearth": planet_population.M_MIN_PLANET},
-            reference_keys=["IdaLin2004a", "IdaLin2004b", "IdaLin2005", "IdaLin2008a",
-                            "Hayashi1981", "KokuboIda1998", "Ikoma2000", "Andrews2013",
-                            "ChenKipping2017", "OwenWu2017"],
-            seed=PLANET_SEED, created=export.git_commit_time())
+        meta = planet_meta()
         return export.build_document(meta, experiment=PLANET_EXPERIMENTS[name](params))
     if name in STRUCTURE_EXPERIMENTS:
         meta = export.build_meta(
@@ -711,7 +800,7 @@ def run(name: str, params: dict, export_web: bool = False) -> Path:
 
 def parse(argv: list[str]) -> tuple[list[str], dict, bool]:
     if not argv or argv[0] not in (*EXPERIMENTS, *STRUCTURE_EXPERIMENTS, *PLANET_EXPERIMENTS,
-                                   "all"):
+                                   "all", "planets"):
         raise SystemExit(__doc__)
     params, export_web = dict(DEFAULTS), False
     for arg in argv[1:]:
@@ -723,7 +812,7 @@ def parse(argv: list[str]) -> tuple[list[str], dict, bool]:
         else:
             raise SystemExit(f"unknown option {arg!r}\n{__doc__}")
     feh_grid(params["feh"])  # fails early on a malformed range
-    names = list(EXPERIMENTS) if argv[0] == "all" else [argv[0]]
+    names = {"all": list(EXPERIMENTS), "planets": list(PLANET_EXPERIMENTS)}.get(argv[0], [argv[0]])
     return names, params, export_web
 
 
@@ -733,6 +822,8 @@ def main(argv: list[str]) -> None:
         start = time.perf_counter()
         out = run(name, params, export_web)
         print(f"{name}: {out.relative_to(ROOT)} ({time.perf_counter() - start:.1f} s)", flush=True)
+    if export_web and "planet-grid" in names:
+        print(f"planets: {export_planets(planet_meta()).relative_to(ROOT)}", flush=True)
 
 
 if __name__ == "__main__":

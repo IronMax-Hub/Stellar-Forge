@@ -7,12 +7,14 @@ web loader parses it. Both assert the same `schema_version`. The tests check sha
 Changing the format: edit the fixture, raise `schema_version` by one in the fixture,
 `stellarforge/__init__.py` and `web/src/data/types.ts`, and update both sides until both tests pass.
 
-Schema version 7 (the `profiles` block; version 6 added `polytropes`, version 5 the `substituted` provenance, version 4 the
+Schema version 8 (the `population` and `systems` blocks; version 7 added `profiles`, version 6 `polytropes`, version 5 the `substituted` provenance, version 4 the
 `experiment` block; version 3 added `remnant`, version 2 moved
 `track` inside `grid`). The fixture's numbers are hand-written test data, not physics.
 
 A document is `meta` plus one or more blocks: Star Builder files carry `grid`, experiment results
-carry `experiment`, `polytropes.json` carries `polytropes` and `zams.json` carries `profiles`. The fixture holds every block.
+carry `experiment`, `polytropes.json` carries `polytropes`, `zams.json` carries `profiles`,
+`planets/population.json` carries `population` and each `planets/systems_<nnn>.json` carries
+`systems`. The fixture holds every block.
 
 ## `meta` — carried by every export
 
@@ -159,3 +161,56 @@ dimensionless.
 | `kappa_m2_kg` | numbers | Rosseland mean opacity, m²/kg |
 | `nabla`, `nabla_ad`, `nabla_rad` | numbers | the actual, adiabatic and radiative temperature gradients d ln T / d ln P |
 | `convective` | booleans | true where the Schwarzschild criterion gives convection |
+
+## `population` — the planet grid (`stellarforge/experiments.py`, Phase 5)
+
+Written by `make planets` as `web/public/data/planets/population.json`. Everything in it is a
+model prediction; the calibration labels say how far to trust each cell.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `star_masses_msun`, `feh_values` | numbers | the grid; the view's selectors snap to these |
+| `classes` | strings | the planet classes, in the classifier's order |
+| `calibration_mass_msun`, `calibration_feh` | `[low, high]` | the calibration range: cells inside are `prediction`, outside `extrapolation` |
+| `cells` | list of cells | one per star mass and [Fe/H], [Fe/H]-major (all masses of the first [Fe/H] first) |
+| `conclusions[].statement` | string | a conclusion about the population, in words |
+| `conclusions[].label` | calibration label | `prediction` when it holds in every sensitivity run, else `parameter-sensitive` |
+
+Calibration labels are `observational constraint`, `prediction`, `parameter-sensitive` or
+`extrapolation`.
+
+| Cell field | Type | Meaning |
+| --- | --- | --- |
+| `m_star_msun`, `feh` | numbers | the star |
+| `n_systems`, `seed` | integers | disks simulated, and the random seed that reproduces them |
+| `calibration` | calibration label | `prediction` inside the calibration range, `extrapolation` outside |
+| `provenance` | provenance | always `predicted` |
+| `host_share` | object of numbers | class → share of systems with at least one planet of that class |
+| `planets_per_star` | number | planets (≥ 0.1 M⊕) per system |
+| `systems_with_count` | integers | entry k: systems with exactly k planets |
+| `a_ice_au` | number | the snow line, AU |
+| `systems_file` | string | the cell's sample systems, relative to `web/public/data/` |
+
+## `systems` — one cell's sample systems
+
+The first 200 systems of a cell (the disks are drawn at random, so this is an unbiased sample).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `m_star_msun`, `feh`, `seed`, `calibration`, `a_ice_au` | as in the cell | the cell they belong to |
+| `systems[].index` | integer | the system's number in the cell |
+| `systems[].f_g0`, `.f_d0` | numbers | the disk's gas and solids relative to the minimum-mass solar nebula |
+| `systems[].tau_disk_yr` | number | the gas depletion time, years |
+| `systems[].planets` | list of planets | from the inside out; empty when nothing reached 0.1 M⊕ |
+
+| Planet field | Type | Meaning |
+| --- | --- | --- |
+| `class` | class | `gas giant`, `ice giant`, `sub-Neptune`, `super-Earth` or `terrestrial` |
+| `mass_mearth` | number | total mass, M⊕ |
+| `radius_rearth` | number | display radius from Chen & Kipping 2017, R⊕; never used to classify |
+| `a_au`, `a_form_au` | numbers | the orbit when the gas is gone, and where the core grew, AU |
+| `f_env` | number | envelope fraction, M_env / M_p |
+| `core` | `ice-rich` or `rock-dominated` | ice-rich when the core grew beyond the snow line |
+| `provenance` | provenance | always `predicted` |
+| `radius_provenance` | provenance | always `derived` |
+
