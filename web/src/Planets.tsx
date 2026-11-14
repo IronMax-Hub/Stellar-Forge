@@ -8,6 +8,7 @@ import { Curves } from "./Experiments";
 import { parseDocument } from "./data/loader";
 import type { Calibration, Meta, Panel, PlanetClass, PlanetSystem, Population, PopulationCell, Systems } from "./data/types";
 import { PLANET_CLASSES } from "./data/types";
+import type { TimelineTarget } from "./SystemTimeline";
 
 const DATA = `${import.meta.env.BASE_URL}data/`;
 
@@ -38,7 +39,7 @@ export function CalibrationBadge({ label }: { label: Calibration }) {
   return <span className={`calib calib-${label.replace(/ /g, "-")}`}>{label}</span>;
 }
 
-export default function Planets() {
+export default function Planets({ onOpenTimeline }: { onOpenTimeline: (t: TimelineTarget) => void }) {
   const [doc, setDoc] = useState<{ meta: Meta; population: Population } | string | null>(null);
   useEffect(() => {
     fetch(DATA + "planets/population.json")
@@ -60,12 +61,12 @@ export default function Planets() {
       </header>
       {doc === null && <p>Loading…</p>}
       {typeof doc === "string" && <p role="alert">{doc}</p>}
-      {doc !== null && typeof doc === "object" && <PopulationView meta={doc.meta} population={doc.population} />}
+      {doc !== null && typeof doc === "object" && <PopulationView meta={doc.meta} population={doc.population} onOpenTimeline={onOpenTimeline} />}
     </main>
   );
 }
 
-function PopulationView({ meta, population }: { meta: Meta; population: Population }) {
+function PopulationView({ meta, population, onOpenTimeline }: { meta: Meta; population: Population; onOpenTimeline: (t: TimelineTarget) => void }) {
   const masses = population.star_masses_msun, fehs = population.feh_values;
   const [mi, setMi] = useState(() => masses.reduce((b, m, k) => (Math.abs(Math.log(m)) < Math.abs(Math.log(masses[b])) ? k : b), 0));
   const [fi, setFi] = useState(() => fehs.reduce((b, f, k) => (Math.abs(f) < Math.abs(fehs[b]) ? k : b), 0));
@@ -93,7 +94,7 @@ function PopulationView({ meta, population }: { meta: Meta; population: Populati
           <input type="range" min={0} max={fehs.length - 1} value={fi} onChange={(e) => setFi(+e.target.value)} />
         </label>
       </section>
-      <CellView key={cell.systems_file} cell={cell} />
+      <CellView key={cell.systems_file} cell={cell} onOpenTimeline={onOpenTimeline} />
     </>
   );
 }
@@ -120,7 +121,7 @@ function GiantOccurrence({ population }: { population: Population }) {
   );
 }
 
-function CellView({ cell }: { cell: PopulationCell }) {
+function CellView({ cell, onOpenTimeline }: { cell: PopulationCell; onOpenTimeline: (t: TimelineTarget) => void }) {
   const systems = useSystems(cell.systems_file);
   const [picked, setPicked] = useState<number | null>(null);
   const sample = typeof systems === "object" && systems !== null ? systems : null;
@@ -144,7 +145,7 @@ function CellView({ cell }: { cell: PopulationCell }) {
       {systems === null && <p>Loading sample systems…</p>}
       {typeof systems === "string" && <p role="alert">{systems}</p>}
       {sample && <MassDistance sample={sample} picked={picked} onPick={setPicked} />}
-      {sample && chosen && <SystemDiagram sample={sample} system={chosen} />}
+      {sample && chosen && <SystemDiagram sample={sample} system={chosen} onFollow={() => onOpenTimeline({ file: cell.timeline_file, index: chosen.index })} />}
     </>
   );
 }
@@ -221,7 +222,7 @@ function MassDistance({ sample, picked, onPick }: { sample: Systems; picked: num
 }
 
 /** A top-down view: orbits on a log scale in distance (true scale would hide the inner planets), planets enlarged by radius. */
-function SystemDiagram({ sample, system }: { sample: Systems; system: PlanetSystem }) {
+function SystemDiagram({ sample, system, onFollow }: { sample: Systems; system: PlanetSystem; onFollow: () => void }) {
   const S = 420, c = S / 2, inner = 18, outer = c - 14;
   const A = [0.03, 100];
   const r = (a: number) => inner + logPos(Math.min(Math.max(a, A[0]), A[1]), A[0], A[1]) * (outer - inner);
@@ -265,6 +266,7 @@ function SystemDiagram({ sample, system }: { sample: Systems; system: PlanetSyst
           </tbody>
         </table>
       </div>
+      <p><button onClick={onFollow}>Follow this system through its star's life</button></p>
       <p className="source">Radii from Chen & Kipping 2017 (derived, for display only). The 3D system view joins in a later phase, once planets carry temperatures.</p>
     </section>
   );

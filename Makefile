@@ -55,6 +55,7 @@ extension:
 	OMP_NUM_THREADS=1 .venv/bin/python -m stellarforge.experiments zams-extension --export
 
 # Phase 5's planet populations: 8 star masses x 15 [Fe/H], 5,000 disks each, then the sensitivity
-# runs, on 4 workers (~10 minutes in all), and the Planets view's files in web/public/data/planets/.
+# runs, on 4 workers (~10 minutes in all), and the Planets view's files in web/public/data/planets/,
+# then the System Timeline files (Phase 6, under a minute).
 planets:
 	OMP_NUM_THREADS=1 .venv/bin/python -m stellarforge.experiments planets --export

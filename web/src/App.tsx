@@ -1,4 +1,5 @@
-// The app: Star Builder (Phases 1-2), Experiments (Phase 3), Inside the Star (Phase 4) and Planets (Phase 5).
+// The app: Star Builder (Phases 1-2), Experiments (Phase 3), Inside the Star (Phase 4), Planets (Phase 5)
+// and System Timeline (Phase 6).
 // Star Builder: pick a mass and [Fe/H] from the exported grid and scrub a star's life, then see its
 // remnant. Every number shown comes from web/public/data, written by `python -m stellarforge.export
 // web`; this file only selects, scales and draws.
@@ -11,6 +12,7 @@ import type { Grid, Meta, Provenance, Remnant, Track } from "./data/types";
 import Experiments from "./Experiments";
 import InsideTheStar from "./InsideTheStar";
 import Planets from "./Planets";
+import SystemTimeline, { type TimelineTarget } from "./SystemTimeline";
 import { BLACK_HOLE_DISTANCE, BlackHoleView, START_ELEVATION_DEG } from "./rendering/blackHole/BlackHoleView";
 import { starDisplayCss } from "./rendering/starColour";
 
@@ -52,7 +54,7 @@ function prefetchAround({ grid }: GridFile) {
 
 const fmt = (x: number, digits = 4) => x.toPrecision(digits);
 
-type View = "star" | "experiments" | "inside" | "planets";
+type View = "star" | "experiments" | "inside" | "planets" | "timeline";
 
 export default function App() {
   const [view, setView] = useState<View>("star");
@@ -62,6 +64,11 @@ export default function App() {
     setView(v);
     setOpened((o) => new Set(o).add(v));
   };
+  const [target, setTarget] = useState<TimelineTarget | null>(null);
+  const openTimeline = (t: TimelineTarget) => {
+    setTarget(t);
+    show("timeline");
+  };
   return (
     <>
       <nav className="tabs" aria-label="Views">
@@ -69,11 +76,13 @@ export default function App() {
         <button aria-pressed={view === "experiments"} onClick={() => show("experiments")}>Experiments</button>
         <button aria-pressed={view === "inside"} onClick={() => show("inside")}>Inside the Star</button>
         <button aria-pressed={view === "planets"} onClick={() => show("planets")}>Planets</button>
+        <button aria-pressed={view === "timeline"} onClick={() => show("timeline")}>System Timeline</button>
       </nav>
       <div hidden={view !== "star"}><StarBuilder /></div>
       {opened.has("experiments") && <div hidden={view !== "experiments"}><Experiments /></div>}
       {opened.has("inside") && <div hidden={view !== "inside"}><InsideTheStar /></div>}
-      {opened.has("planets") && <div hidden={view !== "planets"}><Planets /></div>}
+      {opened.has("planets") && <div hidden={view !== "planets"}><Planets onOpenTimeline={openTimeline} /></div>}
+      {opened.has("timeline") && <div hidden={view !== "timeline"}><SystemTimeline target={target} /></div>}
     </>
   );
 }

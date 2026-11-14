@@ -1,6 +1,6 @@
 {
  "meta": {
-  "schema_version": 9,
+  "schema_version": 10,
   "generator": {
    "name": "stellarforge",
    "version": "0.1.0",
@@ -450,7 +450,8 @@
     "systems_file": "planets/systems_000.json",
     "flags": [
      "survey_check_failed: test flag"
-    ]
+    ],
+    "timeline_file": "planets/timeline_000.json"
    }
   ],
   "conclusions": [
@@ -507,6 +508,122 @@
     "f_d0": 0.3,
     "tau_disk_yr": 1500000.0,
     "planets": []
+   }
+  ]
+ },
+ "timeline": {
+  "name": "1 M☉, [Fe/H] +0",
+  "m_star_msun": 1.0,
+  "feh": 0.0,
+  "systems_file": "planets/systems_000.json",
+  "star": {
+   "provenance": "published",
+   "method": "MIST grid track",
+   "ending": "white-dwarf cooling sequence",
+   "flags": [
+    "habitable_zone_undefined_part_of_track: Teff outside Kopparapu et al.'s 2,600-7,200 K"
+   ],
+   "age_yr": [
+    3000000.0,
+    4600000000.0,
+    11300000000.0
+   ],
+   "mass_msun": [
+    1.0,
+    1.0,
+    0.95
+   ],
+   "radius_au": [
+    0.01,
+    0.0047,
+    0.8
+   ],
+   "l_lsun": [
+    1.5,
+    1.1,
+    2500.0
+   ],
+   "teff_k": [
+    4300.0,
+    5800.0,
+    3000.0
+   ],
+   "hz_inner_au": [
+    1.2,
+    1.02,
+    null
+   ],
+   "hz_outer_au": [
+    2.2,
+    1.8,
+    null
+   ],
+   "phase": [
+    "pre-main sequence",
+    "main sequence",
+    "red giant branch"
+   ],
+   "rgb": [
+    [
+     1.0,
+     0.8,
+     0.6
+    ],
+    [
+     1.0,
+     0.95,
+     0.9
+    ],
+    [
+     1.0,
+     0.6,
+     0.3
+    ]
+   ]
+  },
+  "systems": [
+   {
+    "index": 0,
+    "planets": [
+     {
+      "name": null,
+      "class_at_formation": "sub-Neptune",
+      "class_final": "super-Earth",
+      "mass_mearth": 6.0,
+      "final_mass_mearth": 5.8,
+      "final_f_env": 0.0,
+      "orbit_sample": [
+       0,
+       1,
+       2
+      ],
+      "orbit_a_au": [
+       0.05,
+       0.05,
+       0.0526
+      ],
+      "fate": "engulfed",
+      "closest_approach_rstar": 1.0,
+      "deciding_phase": "red giant branch",
+      "xuv_dose_earth": 400.0,
+      "shoreline": "lost",
+      "air_retained": 0.0,
+      "events": [
+       {
+        "age_yr": 3000000.0,
+        "kind": "formed",
+        "detail": "sub-Neptune, 6 M⊕ at 0.05 AU"
+       },
+       {
+        "age_yr": 11300000000.0,
+        "kind": "engulfed",
+        "detail": "inside the star"
+       }
+      ],
+      "flags": [],
+      "provenance": "predicted"
+     }
+    ]
    }
   ]
  }

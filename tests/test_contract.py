@@ -16,11 +16,11 @@ MAPS = {"inputs", "models", "phase_names", "host_share"}
 # Fields that may be null: remnant values with no remnant or no MIST value, a row without y, no seed.
 NULLABLE = {"mass_msun", "radius_km", "cooling", "final_mass_msun", "he_core_mass_msun",
             "co_core_mass_msun", "y", "seed", "xi1", "density_concentration", "sun_rho_c_kg_m3",
-            "sun_p_c_pa", "sun_t_c_k", "mist"}
+            "sun_p_c_pa", "sun_t_c_k", "mist", "name", "systems_file"}
 # Lists whose items may be null: experiment cells without a number, word or provenance.
-NULLABLE_ITEMS = {"values", "labels", "provenance"}
+NULLABLE_ITEMS = {"values", "labels", "provenance", "hz_inner_au", "hz_outer_au"}
 # Blocks a document may carry beside `meta`; the fixture holds them all.
-BLOCKS = {"grid", "experiment", "polytropes", "profiles", "population", "systems"}
+BLOCKS = {"grid", "experiment", "polytropes", "profiles", "population", "systems", "timeline"}
 
 
 def kind(value):
@@ -163,7 +163,8 @@ def test_profile_document_matches_fixture_shape():
 
 
 def test_planet_export_matches_fixture_shape(tmp_path, monkeypatch):
-    """A real (small) planet cell through the export: population.json and a systems file."""
+    """A real (small) planet cell through the export: population.json, a systems file and its
+    timeline, and the Solar System timeline."""
     from stellarforge import experiments
     cells = [experiments._planet_stats((1.0, feh, 60, 3, {})) for feh in (0.0, 0.3)]
     assert any(s["planets"] for c in cells for s in c["samples"])
@@ -194,6 +195,22 @@ def test_planet_export_matches_fixture_shape(tmp_path, monkeypatch):
     systems = json.loads((tmp_path / "systems_001.json").read_text())
     assert_shape(systems, FIXTURE)
     assert len(systems["systems"]["systems"]) == 60
+    assert population["population"]["cells"][1]["timeline_file"] == "planets/timeline_001.json"
+    solar = json.loads(experiments.export_timelines(meta, tmp_path).read_text())
+    assert_shape(solar, FIXTURE)
+    assert [p["name"] for p in solar["timeline"]["systems"][0]["planets"]][:3] == [
+        "Mercury", "Venus", "Earth"]
+    timeline = json.loads((tmp_path / "timeline_001.json").read_text())
+    assert_shape(timeline, FIXTURE)
+    tl = timeline["timeline"]
+    assert tl["systems_file"] == "planets/systems_001.json"
+    # The timeline continues the systems file planet by planet, in the same order
+    assert [[p["mass_mearth"] for p in s["planets"]] for s in tl["systems"]] == [
+        [p["mass_mearth"] for p in s["planets"]] for s in systems["systems"]["systems"]]
+    n_ages = len(tl["star"]["age_yr"])
+    for s in tl["systems"]:
+        for p in s["planets"]:
+            assert max(p["orbit_sample"]) < n_ages and p["events"][0]["kind"] == "formed"
     with pytest.raises(ValueError):
         export.build_planet(planet_class="hot Jupiter", mass_mearth=1, radius_rearth=1, a_au=1,
                             a_form_au=1, f_env=0, ice_rich=False)

@@ -7,14 +7,14 @@ web loader parses it. Both assert the same `schema_version`. The tests check sha
 Changing the format: edit the fixture, raise `schema_version` by one in the fixture,
 `stellarforge/__init__.py` and `web/src/data/types.ts`, and update both sides until both tests pass.
 
-Schema version 9 (validity `flags` on each `population` cell; version 8 added the `population` and `systems` blocks; version 7 added `profiles`, version 6 `polytropes`, version 5 the `substituted` provenance, version 4 the
+Schema version 10 (the `timeline` block and each `population` cell's `timeline_file`; version 9 added validity `flags` on each `population` cell; version 8 added the `population` and `systems` blocks; version 7 added `profiles`, version 6 `polytropes`, version 5 the `substituted` provenance, version 4 the
 `experiment` block; version 3 added `remnant`, version 2 moved
 `track` inside `grid`). The fixture's numbers are hand-written test data, not physics.
 
 A document is `meta` plus one or more blocks: Star Builder files carry `grid`, experiment results
 carry `experiment`, `polytropes.json` carries `polytropes`, `zams.json` carries `profiles`,
-`planets/population.json` carries `population` and each `planets/systems_<nnn>.json` carries
-`systems`. The fixture holds every block.
+`planets/population.json` carries `population`, each `planets/systems_<nnn>.json` carries
+`systems`, and each `planets/timeline_<nnn>.json` and `planets/solar_system.json` carry `timeline`. The fixture holds every block.
 
 ## `meta` — carried by every export
 
@@ -190,6 +190,7 @@ Calibration labels are `observational constraint`, `prediction`, `parameter-sens
 | `systems_with_count` | integers | entry k: systems with exactly k planets |
 | `a_ice_au` | number | the snow line, AU |
 | `systems_file` | string | the cell's sample systems, relative to `web/public/data/` |
+| `timeline_file` | string | their timelines (the `timeline` block), relative to `web/public/data/` |
 | `flags` | strings | validity warnings: each survey check the model fails, with its numbers (ground rule 6) |
 
 ## `systems` — one cell's sample systems
@@ -215,3 +216,43 @@ The first 200 systems of a cell (the disks are drawn at random, so this is an un
 | `provenance` | provenance | always `predicted` |
 | `radius_provenance` | provenance | always `derived` |
 
+## `timeline` — planets through their star's life (`stellarforge/planets/coevolution.py`, Phase 6)
+
+Written by `make planets` (or `python -m stellarforge.experiments timelines --export`) as
+`web/public/data/planets/timeline_<nnn>.json`, one per `systems_<nnn>.json` and continuing it
+planet by planet in the same order, and as `planets/solar_system.json`, the reference case.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `name` | string | what the file shows: the cell, or `Solar System` |
+| `m_star_msun`, `feh` | numbers | the star |
+| `systems_file` | string or null | the Phase 5 systems this continues; null for the Solar System |
+| `star` | object | the star at the exported ages (below) |
+| `systems[].index` | integer | the system's number in the cell (as in `systems_file`) |
+| `systems[].planets` | list of planets | in the order of `systems_file` |
+
+| Star field | Type | Meaning |
+| --- | --- | --- |
+| `provenance`, `method`, `ending`, `flags` | as in `track` | where the star's track came from, and its warnings |
+| `age_yr` | numbers | the exported ages; every other list has one entry per age |
+| `mass_msun`, `radius_au`, `l_lsun`, `teff_k` | numbers | the star; radius in AU so it can be drawn with the orbits |
+| `hz_inner_au`, `hz_outer_au` | numbers or null | Kopparapu et al. 2013 runaway and maximum greenhouse limits; null where Teff is outside 2,600–7,200 K |
+| `phase` | strings | MIST phase name |
+| `rgb` | `[r, g, b]` per age | display colour from Teff (`stellarforge/colour.py`), derived |
+
+| Planet field | Type | Meaning |
+| --- | --- | --- |
+| `name` | string or null | named planets only (the Solar System) |
+| `class_at_formation`, `class_final` | classes | Phase 5's class when the gas is gone, and after escape |
+| `mass_mearth`, `final_mass_mearth` | numbers | total mass then and at the end, M⊕ |
+| `final_f_env` | number | envelope fraction at the end |
+| `orbit_sample`, `orbit_a_au` | integers, numbers | the orbit as knots: `orbit_a_au[i]` at age `age_yr[orbit_sample[i]]`; between knots it changes linearly with the sample index. The last knot is the last age the planet exists |
+| `fate` | string | `engulfed`, `unbound`, `orbits white dwarf`, `orbits neutron star`, `orbits black hole` or `unresolved` (the track ends first) |
+| `closest_approach_rstar` | number | the smallest orbit in stellar radii (1 when engulfed) |
+| `deciding_phase` | string | the MIST phase at the closest approach |
+| `xuv_dose_earth` | number | XUV dose since the disk's end, Earth doses |
+| `shoreline` | `kept` or `lost` | the cosmic-shoreline label (Zahnle & Catling 2017 slope, Aion Forge's K = 10) |
+| `air_retained` | number | the shoreline's share of air kept (Aion Forge's retention curve) |
+| `events[]` | `{age_yr, kind, detail}` | `formed`, `enters habitable zone`, `leaves habitable zone`, `crosses shoreline`, `envelope stripped`, `class changed`, `engulfed`, `unbound`, `orbits remnant` or `track ends`; `detail` says it in words |
+| `flags` | strings | validity warnings, such as the shoreline and escape disagreeing |
+| `provenance` | provenance | always `predicted` |
