@@ -230,14 +230,14 @@ def build_population(*, star_masses_msun, feh_values, calibration_mass_msun, cal
 
 
 def build_planet(*, planet_class: str, mass_mearth: float, radius_rearth: float, a_au: float,
-                 a_form_au: float, f_env: float, ice_rich: bool) -> dict:
+                 a_form_au: float, f_env: float, ice_rich: bool, e: float) -> dict:
     """One planet when the gas disk is gone. Its radius is derived (Chen & Kipping 2017); the rest
     is the model's prediction."""
     return {"class": _check(planet_class, PLANET_CLASSES, "class"),
             "mass_mearth": float(f"{mass_mearth:.5g}"),
             "radius_rearth": float(f"{radius_rearth:.4g}"), "a_au": float(f"{a_au:.5g}"),
-            "a_form_au": float(f"{a_form_au:.5g}"), "f_env": float(f"{f_env:.4g}"),
-            "core": CORES[0] if ice_rich else CORES[1], "provenance": "predicted",
+            "a_form_au": float(f"{a_form_au:.5g}"), "e": float(f"{e:.4g}"),
+            "f_env": float(f"{f_env:.4g}"), "core": CORES[0] if ice_rich else CORES[1], "provenance": "predicted",
             "radius_provenance": "derived"}
 
 
@@ -273,30 +273,40 @@ def build_timeline_star(*, track, hist, samples) -> dict:
             "rgb": [_round(c, 4) for c in temperature_to_rgb(hist.teff_k[samples])]}
 
 
-def _orbit_knots(a_au) -> tuple[list[int], list[float]]:
-    """The exported orbit as (sample index, a) knots: inside a run of equal values only its ends
-    are kept, so linear drawing between knots reproduces the series; NaN (gone) ends it."""
+def _orbit_knots(a_au, e=None) -> tuple[list[int], list[float], list[float]]:
+    """The exported orbit as (sample index, a, e) knots: inside a run where both a and e stay equal
+    only its ends are kept, so linear drawing between knots reproduces the series; NaN (gone)
+    ends it."""
     a = np.asarray(a_au, float)
-    a = a[:np.flatnonzero(np.isfinite(a))[-1] + 1]
-    flat = np.isclose(a[1:-1], a[:-2], rtol=1e-4) & np.isclose(a[1:-1], a[2:], rtol=1e-4)
-    keep = np.flatnonzero(~np.concatenate([[False], flat, [False]]))
-    return [int(i) for i in keep], _sig(a[keep], 5)
+    end = np.flatnonzero(np.isfinite(a))[-1] + 1
+    a = a[:end]
+    e = np.zeros(end) if e is None else np.asarray(e, float)[:end]
+
+    def same(x):
+        return np.isclose(x[1:-1], x[:-2], rtol=1e-4, atol=1e-5) & \
+            np.isclose(x[1:-1], x[2:], rtol=1e-4, atol=1e-5)
+    keep = np.flatnonzero(~np.concatenate([[False], same(a) & same(e), [False]]))
+    return [int(i) for i in keep], _sig(a[keep], 5), _sig(e[keep], 4)
 
 
 def build_timeline_planet(*, result: dict, i: int, name: str | None, planet_class: str,
                           mass_mearth: float) -> dict:
     """Planet i of a coevolution.evolve_planets result."""
     from .planets.coevolution import EVENT_KINDS, FATES
-    sample, a = _orbit_knots(result["a_au"][i])
+    sample, a, e = _orbit_knots(result["a_au"][i], result["e"][i])
     events = result["events"][i]
-    for e in events:
-        _check(e["kind"], EVENT_KINDS, "event kind")
+    for ev in events:
+        _check(ev["kind"], EVENT_KINDS, "event kind")
     return {"name": name, "class_at_formation": _check(planet_class, PLANET_CLASSES, "class"),
             "class_final": _check(str(result["final_class"][i]), PLANET_CLASSES, "class"),
             "mass_mearth": float(f"{mass_mearth:.5g}"),
             "final_mass_mearth": float(f"{result['final_mass_mearth'][i]:.5g}"),
             "final_f_env": float(f"{result['final_f_env'][i]:.4g}"),
-            "orbit_sample": sample, "orbit_a_au": a,
+            "orbit_sample": sample, "orbit_a_au": a, "orbit_e": e,
+            "orbit_pericentre_au": _sig(np.multiply(a, np.subtract(1, e)), 5),
+            "orbit_apocentre_au": _sig(np.multiply(a, np.add(1, e)), 5),
+            "e": float(f"{result['initial_e'][i]:.4g}"),
+            "final_e": float(f"{result['final_e'][i]:.4g}"),
             "fate": _check(str(result["fate"][i]), FATES, "fate"),
             "closest_approach_rstar": float(f"{result['closest_approach_rstar'][i]:.4g}"),
             "deciding_phase": str(result["deciding_phase"][i]),

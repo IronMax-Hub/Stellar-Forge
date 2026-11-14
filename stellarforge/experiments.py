@@ -530,7 +530,8 @@ def _planet_stats(args) -> dict:
              "planets": [export.build_planet(
                  planet_class=str(p["class"][j]), mass_mearth=p["mass_mearth"][j],
                  radius_rearth=p["radius_rearth"][j], a_au=p["a_au"][j],
-                 a_form_au=p["a_form_au"][j], f_env=p["f_env"][j], ice_rich=bool(p["ice_rich"][j]))
+                 a_form_au=p["a_form_au"][j], f_env=p["f_env"][j], ice_rich=bool(p["ice_rich"][j]),
+                 e=p["e"][j])
                  for j in np.flatnonzero(p["system"] == i)]}
             for i in range(min(SAMPLE_SYSTEMS, n))]
     return out
@@ -790,10 +791,14 @@ def timeline_meta() -> dict:
         dataset="MIST v1.2 tracks for the stars; the planets are Phase 5's sample systems",
         models={"habitable zone": "Kopparapu et al. 2013, runaway to maximum greenhouse, "
                                   "2,600-7,200 K",
-                "orbits": "a M★ constant under slow mass loss (Veras et al. 2011); equilibrium "
-                          "tide after the main sequence (Zahn 1977, Mustill & Villaver 2012 "
-                          "fiducial); engulfment when a ≤ R★; sudden loss of over half the "
-                          "mass unbinds (Hills 1983)",
+                "orbits": "a M★ constant and e kept under slow mass loss (Veras et al. "
+                          "2011); equilibrium tide with eccentricity terms after the main "
+                          "sequence (Zahn 1977, Mustill & Villaver 2012 eqs. 1-2, fiducial); "
+                          "chromospheric drag (Schröder & Connon Smith 2008, Ostriker 1999); "
+                          "engulfment when the pericentre a(1 - e) ≤ R★; sudden loss of over "
+                          "half the mass unbinds (Hills 1983)",
+                "eccentricity": "Phase 5's, from Ida & Lin 2010 Appendix steps 1, 3 and 7 (a "
+                                "lower bound); the Solar System's measured values",
                 "xuv": "ported from Aion Forge: Wright et al. 2011 saturation, Ribas et al. "
                        "2005 decay, held after the main sequence",
                 "shoreline": "Zahnle & Catling 2017 v_esc⁴ slope; K = 10 and the retention "
@@ -802,10 +807,12 @@ def timeline_meta() -> dict:
                           "radius; Chen & Kipping 2017 radius where X ≥ 1"},
         inputs={"hz_min_stay_yr": coevolution.HZ_MIN_STAY_YR,
                 "eta_escape": planets_escape.ETA, "shoreline_k": shoreline.ESCAPE_K,
-                "output_samples": float(coevolution.OUTPUT_SAMPLES)},
+                "output_samples": float(coevolution.OUTPUT_SAMPLES),
+                "drag_lambda": coevolution.DRAG_LAMBDA,
+                "drag_sound_speed_km_s": coevolution.SOUND_SPEED_CM_S / 1e5},
         reference_keys=["Choi2016", "Dotter2016", "Kopparapu2013", "Veras2011", "Zahn1977",
                         "VerbuntPhinney1995", "VillaverLivio2009", "MustillVillaver2012",
-                        "SchroderSmith2008", "Hills1983", "Hobbs2005", "Wright2011", "Ribas2005",
+                        "SchroderSmith2008", "Ostriker1999", "IdaLin2010", "Hills1983", "Hobbs2005", "Wright2011", "Ribas2005",
                         "ZahnleCatling2017", "OwenWu2017", "ChenKipping2017", "Cummings2018"],
         seed=None, created=export.git_commit_time())
 
@@ -821,7 +828,12 @@ def _timeline_of(name: str, m_star: float, feh: float, systems_file: str | None,
     res = coevolution.evolve_planets(
         hist, [p["a_au"] for _, p in flat], [p["mass_mearth"] for _, p in flat],
         [p["f_env"] for _, p in flat], [p["core"] == export.CORES[0] for _, p in flat],
-        [t_start_yr or s["tau_disk_yr"] for s, _ in flat], [p["a_form_au"] for _, p in flat])
+        [t_start_yr or s["tau_disk_yr"] for s, _ in flat], [p["a_form_au"] for _, p in flat],
+        e=[p["e"] for _, p in flat])
+    if names is None:      # Phase 5 planets: only the encountering pair is scattered
+        for f in res["flags"]:
+            f.append("eccentricity_lower_bound: Ida & Lin 2010 Appendix step 4 not modelled")
+            f.sort()
     out, j = [], 0
     for s in systems:
         planets = []
@@ -850,9 +862,9 @@ def _timeline_cell(args) -> tuple[str, dict]:
 
 def solar_system_timeline() -> dict:
     systems = [{"index": 0, "tau_disk_yr": coevolution.SOLAR_DISK_END_YR, "planets": [
-        {"a_au": a, "mass_mearth": m, "f_env": f, "a_form_au": a,
+        {"a_au": a, "mass_mearth": m, "f_env": f, "a_form_au": a, "e": e,
          "core": export.CORES[0] if ice else export.CORES[1],
-         "class": str(classify(m, f, ice))} for _, m, a, f, ice in coevolution.SOLAR_SYSTEM]}]
+         "class": str(classify(m, f, ice))} for _, m, a, f, ice, e in coevolution.SOLAR_SYSTEM]}]
     return _timeline_of("Solar System", 1.0, 0.0, None, systems,
                         names=[p[0] for p in coevolution.SOLAR_SYSTEM],
                         t_start_yr=coevolution.SOLAR_DISK_END_YR)

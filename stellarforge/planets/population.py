@@ -334,7 +334,8 @@ def after_gas(state: dict, disks: dict, m_star_msun: float, rng: np.random.Gener
 
 def planets(state: dict) -> dict:
     """The surviving planets (M_p ≥ M_MIN_PLANET) as flat arrays with their system index, class
-    (classify.py) and display radius (radius.py)."""
+    (classify.py), display radius (radius.py) and eccentricity (a lower bound: Appendix step 4 is
+    not modelled, see after_gas)."""
     m = state["core_mearth"] + state["env_mearth"]
     keep = m >= M_MIN_PLANET
     system = np.nonzero(keep)[0]
@@ -343,7 +344,7 @@ def planets(state: dict) -> dict:
     ice = state["ice_rich"][keep]
     return {"system": system, "mass_mearth": mass, "f_env": f_env, "ice_rich": ice,
             "a_au": state["a_au"][keep], "a_form_au": state["a_form_au"][keep],
-            "radius_rearth": radius_rearth(mass), "class": classify(mass, f_env, ice)}
+            "e": state["e"][keep], "radius_rearth": radius_rearth(mass), "class": classify(mass, f_env, ice)}
 
 
 def run_cell(m_star_msun: float, feh: float, n_systems: int, seed: int, **params) -> dict:

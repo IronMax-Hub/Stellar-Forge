@@ -107,6 +107,10 @@ describe("data contract", () => {
     const tl = parseDocument(fixture()).timeline!;
     expect(tl.star.hz_inner_au[2]).toBeNull();
     expect(tl.systems[0].planets[0].events[0].kind).toBe("formed");
+    expect(tl.systems[0].planets[0].orbit_pericentre_au).toHaveLength(tl.systems[0].planets[0].orbit_sample.length);
+    const short = fixture();
+    (planet(short).orbit_e as number[]).pop();
+    expect(() => parseDocument(short)).toThrow(/orbit_e/);
     const late = fixture();
     planet(late).orbit_sample = [0, 1, 3];
     expect(() => parseDocument(late)).toThrow(/orbit_sample/);

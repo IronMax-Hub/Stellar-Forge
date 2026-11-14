@@ -142,15 +142,18 @@ function alongNullable(values: (number | null)[], s: number): number | null {
   return a + (b - a) * (s - i);
 }
 
-/** The planet's orbit at sample position s, from its knots; null once it is gone. */
-function orbitAt(p: TimelinePlanet, s: number): number | null {
-  const k = p.orbit_sample;
+type OrbitSeries = "orbit_a_au" | "orbit_e" | "orbit_pericentre_au" | "orbit_apocentre_au";
+
+/** One orbit series at sample position s, drawn linearly between its knots; null once the planet
+ * is gone. */
+function orbitAt(p: TimelinePlanet, s: number, series: OrbitSeries = "orbit_a_au"): number | null {
+  const k = p.orbit_sample, v = p[series];
   if (s > k[k.length - 1]) return null;
   let j = 0;
   while (j < k.length - 1 && k[j + 1] < s) j++;
-  if (j === k.length - 1 || s <= k[0]) return p.orbit_a_au[j];
+  if (j === k.length - 1 || s <= k[0]) return v[j];
   const w = (s - k[j]) / (k[j + 1] - k[j]);
-  return p.orbit_a_au[j] + (p.orbit_a_au[j + 1] - p.orbit_a_au[j]) * w;
+  return v[j] + (v[j + 1] - v[j]) * w;
 }
 
 const fmtAge = (yr: number) => (yr >= 1e9 ? `${(yr / 1e9).toFixed(3)} Gyr` : yr >= 1e6 ? `${(yr / 1e6).toFixed(2)} Myr` : `${yr.toPrecision(3)} yr`);
@@ -226,12 +229,16 @@ function TimelineView({ meta, timeline, index }: { meta: Meta; timeline: Timelin
             {planets.map((p, k) => {
               const a = orbitAt(p, s);
               if (a === null || age < formedAt[k]) return null;
-              const angle = (k * 2.4) % (2 * Math.PI);
+              const e = orbitAt(p, s, "orbit_e")!;
+              // An ellipse through the exported pericentre and apocentre on the log scale, its
+              // pericentre towards the planet's angle; the planet is drawn at its pericentre
+              const rq = r(orbitAt(p, s, "orbit_pericentre_au")!), rQ = r(orbitAt(p, s, "orbit_apocentre_au")!);
+              const deg = ((k * 2.4) % (2 * Math.PI)) * (180 / Math.PI);
               return (
-                <g key={k}>
-                  <circle cx={c} cy={c} r={r(a)} className="orbit" />
-                  <circle cx={c + r(a) * Math.cos(angle)} cy={c + r(a) * Math.sin(angle)} r={sizeOf(p)} fill={CLASS_COLOURS[p.class_at_formation]}>
-                    <title>{`${label(p, k)}: ${a.toPrecision(4)} AU`}</title>
+                <g key={k} transform={`rotate(${deg} ${c} ${c})`}>
+                  <ellipse cx={c - (rQ - rq) / 2} cy={c} rx={(rq + rQ) / 2} ry={Math.sqrt(rq * rQ)} className="orbit" />
+                  <circle cx={c + rq} cy={c} r={sizeOf(p)} fill={CLASS_COLOURS[p.class_at_formation]}>
+                    <title>{`${label(p, k)}: a ${a.toPrecision(4)} AU, e ${e.toPrecision(3)}, pericentre ${orbitAt(p, s, "orbit_pericentre_au")!.toPrecision(4)} AU`}</title>
                   </circle>
                 </g>
               );
@@ -246,19 +253,20 @@ function TimelineView({ meta, timeline, index }: { meta: Meta; timeline: Timelin
             ))}
           </ol>
         </div>
-        <p className="source">Orbits and the star on one log scale (0.003–300 AU); planet sizes are enlarged; the green band is the habitable zone. Shaded star colour from its temperature (derived in Python). {meta.models.orbits}.</p>
+        <p className="source">Orbits and the star on one log scale (0.003–300 AU), each drawn through its pericentre and apocentre with the planet at its pericentre; planet sizes are enlarged; the green band is the habitable zone. Shaded star colour from its temperature (derived in Python). {meta.models.orbits}.</p>
       </section>
       <section>
         <h2>Fates</h2>
         <table className="result-table">
-          <thead><tr><th>Planet</th><th>Mass (M⊕)</th><th>Fate</th><th>Closest approach</th><th>Deciding phase</th><th>Class at the end</th><th>Shoreline</th><th>XUV dose</th><th>Warnings</th></tr></thead>
+          <thead><tr><th>Planet</th><th>Mass (M⊕)</th><th>Fate</th><th>e (start → end)</th><th>Closest approach</th><th>Deciding phase</th><th>Class at the end</th><th>Shoreline</th><th>XUV dose</th><th>Warnings</th></tr></thead>
           <tbody>
             {planets.map((p, k) => (
               <tr key={k}>
                 <td><i className="swatch" style={{ background: CLASS_COLOURS[p.class_at_formation] }} />{label(p, k)}</td>
                 <td>{p.mass_mearth}{p.final_mass_mearth !== p.mass_mearth && ` → ${p.final_mass_mearth}`}</td>
                 <td>{p.fate}<span className="prov">{p.provenance}</span></td>
-                <td>{p.closest_approach_rstar} R★</td>
+                <td>{p.e}{p.final_e !== p.e && ` → ${p.final_e}`}</td>
+                <td>{p.closest_approach_rstar} R★ (pericentre)</td>
                 <td>{p.deciding_phase}</td>
                 <td>{p.class_final}{p.final_f_env > 0 && ` (envelope ${(100 * p.final_f_env).toPrecision(3)}%)`}</td>
                 <td>{p.shoreline} ({(100 * p.air_retained).toFixed(0)}% kept)</td>
