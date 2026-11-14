@@ -7,7 +7,7 @@ web loader parses it. Both assert the same `schema_version`. The tests check sha
 Changing the format: edit the fixture, raise `schema_version` by one in the fixture,
 `stellarforge/__init__.py` and `web/src/data/types.ts`, and update both sides until both tests pass.
 
-Schema version 10 (the `timeline` block and each `population` cell's `timeline_file`; version 9 added validity `flags` on each `population` cell; version 8 added the `population` and `systems` blocks; version 7 added `profiles`, version 6 `polytropes`, version 5 the `substituted` provenance, version 4 the
+Schema version 11 (eccentricities: `e` on `systems` planets; `e`, `final_e` and the `orbit_e`, `orbit_pericentre_au` and `orbit_apocentre_au` knots on `timeline` planets; version 10 added the `timeline` block and each `population` cell's `timeline_file`; version 9 added validity `flags` on each `population` cell; version 8 added the `population` and `systems` blocks; version 7 added `profiles`, version 6 `polytropes`, version 5 the `substituted` provenance, version 4 the
 `experiment` block; version 3 added `remnant`, version 2 moved
 `track` inside `grid`). The fixture's numbers are hand-written test data, not physics.
 
@@ -211,6 +211,7 @@ The first 200 systems of a cell (the disks are drawn at random, so this is an un
 | `mass_mearth` | number | total mass, M⊕ |
 | `radius_rearth` | number | display radius from Chen & Kipping 2017, R⊕; never used to classify |
 | `a_au`, `a_form_au` | numbers | the orbit when the gas is gone, and where the core grew, AU |
+| `e` | number | eccentricity when the giant impacts end (Ida & Lin 2010 Appendix); a lower bound, as only the encountering pair is scattered |
 | `f_env` | number | envelope fraction, M_env / M_p |
 | `core` | `ice-rich` or `rock-dominated` | ice-rich when the core grew beyond the snow line |
 | `provenance` | provenance | always `predicted` |
@@ -247,8 +248,10 @@ planet by planet in the same order, and as `planets/solar_system.json`, the refe
 | `mass_mearth`, `final_mass_mearth` | numbers | total mass then and at the end, M⊕ |
 | `final_f_env` | number | envelope fraction at the end |
 | `orbit_sample`, `orbit_a_au` | integers, numbers | the orbit as knots: `orbit_a_au[i]` at age `age_yr[orbit_sample[i]]`; between knots it changes linearly with the sample index. The last knot is the last age the planet exists |
+| `orbit_e`, `orbit_pericentre_au`, `orbit_apocentre_au` | numbers | eccentricity, a(1 − e) and a(1 + e) at the same knots, computed in Python for drawing |
+| `e`, `final_e` | numbers | eccentricity when the gas is gone and at the end |
 | `fate` | string | `engulfed`, `unbound`, `orbits white dwarf`, `orbits neutron star`, `orbits black hole` or `unresolved` (the track ends first) |
-| `closest_approach_rstar` | number | the smallest orbit in stellar radii (1 when engulfed) |
+| `closest_approach_rstar` | number | the smallest pericentre in stellar radii (1 when engulfed) |
 | `deciding_phase` | string | the MIST phase at the closest approach |
 | `xuv_dose_earth` | number | XUV dose since the disk's end, Earth doses |
 | `shoreline` | `kept` or `lost` | the cosmic-shoreline label (Zahnle & Catling 2017 slope, Aion Forge's K = 10) |

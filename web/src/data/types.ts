@@ -2,7 +2,7 @@
 // Python writes these values; nothing here computes one.
 
 /** Must equal SCHEMA_VERSION in stellarforge/__init__.py and the fixture's meta.schema_version. */
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 
 export type Provenance = "published" | "interpolated" | "substituted" | "derived" | "predicted";
 export const PROVENANCES: readonly Provenance[] = ["published", "interpolated", "substituted", "derived", "predicted"];
@@ -213,6 +213,8 @@ export interface PlanetResult {
   radius_rearth: number;
   a_au: number;
   a_form_au: number;
+  /** eccentricity when the giant impacts end; a lower bound */
+  e: number;
   f_env: number;
   core: Core;
   provenance: Provenance;
@@ -281,6 +283,13 @@ export interface TimelinePlanet {
   /** the orbit as knots: orbit_a_au[i] at age_yr[orbit_sample[i]]; the last knot is the last age the planet exists */
   orbit_sample: number[];
   orbit_a_au: number[];
+  /** eccentricity, pericentre and apocentre at the same knots (computed in Python) */
+  orbit_e: number[];
+  orbit_pericentre_au: number[];
+  orbit_apocentre_au: number[];
+  /** eccentricity when the gas is gone and at the end */
+  e: number;
+  final_e: number;
   fate: Fate;
   closest_approach_rstar: number;
   deciding_phase: string;

@@ -231,8 +231,13 @@
  },
  {
   "key": "SchroderSmith2008",
-  "citation": "SchrÃ¶der 2008, Monthly Notices of the Royal Astronomical Society, 386, 155-163: Distant future of the Sun and Earth revisited",
+  "citation": "Schröder 2008, Monthly Notices of the Royal Astronomical Society, 386, 155-163: Distant future of the Sun and Earth revisited",
   "doi": "10.1111/j.1365-2966.2008.13022.x"
+ },
+ {
+  "key": "Ostriker1999",
+  "citation": "Ostriker 1999, The Astrophysical Journal, 513, 252-258: Dynamical Friction in a Gaseous Medium",
+  "doi": "10.1086/306858"
  },
  {
   "key": "Hills1983",

@@ -213,7 +213,7 @@ def test_planet_export_matches_fixture_shape(tmp_path, monkeypatch):
             assert max(p["orbit_sample"]) < n_ages and p["events"][0]["kind"] == "formed"
     with pytest.raises(ValueError):
         export.build_planet(planet_class="hot Jupiter", mass_mearth=1, radius_rearth=1, a_au=1,
-                            a_form_au=1, f_env=0, ice_rich=False)
+                            a_form_au=1, f_env=0, ice_rich=False, e=0)
 
 
 def test_schema_version_matches():

@@ -349,6 +349,7 @@ function parsePlanet(value: unknown, path: string): PlanetResult {
     radius_rearth: num("radius_rearth"),
     a_au: num("a_au"),
     a_form_au: num("a_form_au"),
+    e: num("e"),
     f_env: num("f_env"),
     core: oneOf(CORES)(p.core, `${path}.core`),
     provenance: provenance(p.provenance, `${path}.provenance`),
@@ -413,6 +414,11 @@ function parseTimelinePlanet(value: unknown, path: string, ages: number): Timeli
     final_f_env: num("final_f_env"),
     orbit_sample: list(p.orbit_sample, `${path}.orbit_sample`, integer),
     orbit_a_au: list(p.orbit_a_au, `${path}.orbit_a_au`, number),
+    orbit_e: list(p.orbit_e, `${path}.orbit_e`, number),
+    orbit_pericentre_au: list(p.orbit_pericentre_au, `${path}.orbit_pericentre_au`, number),
+    orbit_apocentre_au: list(p.orbit_apocentre_au, `${path}.orbit_apocentre_au`, number),
+    e: num("e"),
+    final_e: num("final_e"),
     fate: oneOf(FATES)(p.fate, `${path}.fate`),
     closest_approach_rstar: num("closest_approach_rstar"),
     deciding_phase: string(p.deciding_phase, `${path}.deciding_phase`),
@@ -429,6 +435,9 @@ function parseTimelinePlanet(value: unknown, path: string, ages: number): Timeli
   const k = planet.orbit_sample;
   if (k.length === 0 || k.length !== planet.orbit_a_au.length || k.some((s, i) => s < 0 || s >= ages || (i > 0 && s <= k[i - 1]))) {
     fail(`${path}.orbit_sample`, "rising sample indices, one per orbit_a_au value");
+  }
+  for (const key of ["orbit_e", "orbit_pericentre_au", "orbit_apocentre_au"] as const) {
+    if (planet[key].length !== k.length) fail(`${path}.${key}`, "one value per orbit_sample knot");
   }
   return planet;
 }

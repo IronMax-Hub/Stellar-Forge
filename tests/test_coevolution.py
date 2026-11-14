@@ -64,6 +64,43 @@ def test_supernova_rule():
     assert co.supernova_unbinds(10.0, 4.9) and not co.supernova_unbinds(10.0, 5.1)
 
 
+def test_eccentric_tides_reduce_to_the_circular_case():
+    # Mustill & Villaver 2012 eqs. 1, 4, 5 at e = 0: ȧ/a = -(2 f₂ / 9 t_conv)(M_env/M★) q (1+q) (R★/a)⁸
+    a, mp, ms, menv, r, lum = np.array([1.5, 2.0, 3.0]), 1e-3, 0.8, 0.5, 1.0, 2000.0
+    ra, _ = co.tide_rates_per_yr(a, 0 * a, mp, ms, menv, r, lum)
+    t_conv = (menv * co.MSUN_G * (r * co.AU_CM) ** 2 / (3 * lum * co.L_SUN_ERG_S)) ** (1 / 3)
+    f2 = 4.5 * np.minimum(1, (co._period_s(a, ms + mp) / (2 * t_conv)) ** 2)
+    q = mp / ms
+    circular = -(2 * f2 / (9 * t_conv)) * (menv / ms) * q * (1 + q) * (r / a) ** 8 * co.YEAR_S
+    assert np.allclose(ra, circular, rtol=1e-12)
+    # The sub-stepped integration against Phase 6's closed form a⁸ - 8 K dt (drag negligible at 3 R★)
+    k = -ra[2] * 3.0**8                   # ȧ a⁷ = -K, constant while f₂ is saturated
+    assert f2[2] == 4.5
+    dt = 0.3 * 3.0**8 / (8 * k)            # 30% of the way to a = 0
+    a1, e1, _, drag = co._orbit_decay(np.array([3.0]), np.zeros(1), np.array([mp]), dt, ms, menv,
+                                      r, lum)
+    assert a1[0] == pytest.approx((3.0**8 - 8 * k * dt) ** 0.125, rel=1e-4)
+    assert e1[0] == 0 and drag[0] < 1e-6
+
+
+def test_tides_circularise():
+    # ė < 0 for every e > 0, across saturated and unsaturated f_i (fiducial parameters)
+    for lum in (10.0, 1e3, 1e5):
+        for a in (1.2, 2.0, 5.0, 20.0):
+            _, re = co.tide_rates_per_yr(a, np.linspace(0.01, 0.9, 20), 1e-3, 1.0, 0.6, 1.0, lum)
+            assert np.all(re < 0)
+
+
+def test_drag_by_hand():
+    # Schröder & Connon Smith 2008 §4.2: tip-RGB Sun of 0.668 M☉ and 256 R☉ = 1.2 AU; today's
+    # chromosphere scaled to a gravity 4.7 dex lower gives 2 × 10¹² cm⁻³, ρ ≈ 4 × 10⁻⁹ kg m⁻³ at
+    # 0.03 AU, and a decay time of about 14 Myr for Earth there (λ_d = 3, c_s = 8 km/s)
+    rho = co.chromosphere_density_g_cm3(0.03, co.G_SUN_CGS * 10**-4.7)
+    assert rho == pytest.approx(4e-12, rel=0.15)
+    tau = co.drag_decay_time_yr(1.2 + 0.03, 3.0035e-6, 0.668, 4e-12)
+    assert 9e6 < tau < 18e6               # 11.1 Myr; the Validation table holds the comparison
+
+
 def test_habitable_zone_flicker_is_dropped():
     ev = [{"age_yr": 1e9, "kind": "enters habitable zone", "detail": ""},
           {"age_yr": 5e9, "kind": "leaves habitable zone", "detail": ""},
@@ -75,9 +112,12 @@ def test_habitable_zone_flicker_is_dropped():
 
 def test_orbit_knots_keep_ends_of_flat_runs():
     a = np.array([1.0, 1.0, 1.0, 1.2, 1.5, 1.5, 1.5, np.nan, np.nan])
-    idx, vals = _orbit_knots(a)
-    assert idx == [0, 2, 3, 4, 6] and vals == [1.0, 1.0, 1.2, 1.5, 1.5]
+    idx, vals, ecc = _orbit_knots(a)
+    assert idx == [0, 2, 3, 4, 6] and vals == [1.0, 1.0, 1.2, 1.5, 1.5] and ecc == [0.0] * 5
     assert np.allclose(np.interp(range(7), idx, vals), a[:7])
+    # A change in e alone keeps its knot
+    idx, _, ecc = _orbit_knots(np.ones(5), np.array([0.1, 0.1, 0.1, 0.05, 0.05]))
+    assert idx == [0, 2, 3, 4] and ecc == [0.1, 0.1, 0.05, 0.05]
 
 
 # ---- On the MIST grid -----------------------------------------------------------------------
@@ -95,15 +135,40 @@ def test_solar_system_reference_case():
     hist, r = co.solar_system()
     fate = dict(zip([p[0] for p in co.SOLAR_SYSTEM], r["fate"]))
     assert [fate[n] for n in ("Mercury", "Venus", "Earth")] == ["engulfed"] * 3
-    # Mars: either outcome passes if the closest approach and deciding phase are reported
+    # Mars: either outcome passes if the closest approach and deciding phase are reported. With
+    # its measured e = 0.0935 (Phase 6.1) it survives at 1.04 R★ from pericentre
     mars = 3
     assert r["closest_approach_rstar"][mars] >= 1 and r["deciding_phase"][mars]
+    assert r["initial_e"][mars] == pytest.approx(0.0935)
     assert all(fate[n] == "orbits white dwarf" for n in ("Jupiter", "Saturn", "Uranus", "Neptune"))
     # Widening is M★,0 / M_WD for the outer planets (no tide reaches them). The plan's 1.76-1.84×
     # assumed a 0.544-0.569 M☉ white dwarf; MIST's is 0.540 M☉, so this gives 1.852 and the
     # Validation table records that check as failed.
     widening = r["final_a_au"][4:] / np.array([p[2] for p in co.SOLAR_SYSTEM[4:]])
     assert widening == pytest.approx(hist.mass_msun[0] / hist.mass_msun[-1], rel=1e-3)
+
+
+@needs_grid
+def test_slow_mass_loss_keeps_e():
+    # Veras et al. 2011: adiabatic mass loss keeps e; no tide reaches Uranus and Neptune
+    _, r = co.solar_system()
+    assert np.allclose(r["final_e"][6:], r["initial_e"][6:], atol=1e-6)
+    assert np.all(r["final_e"][:4][r["fate"][:4] == "orbits white dwarf"] <= r["initial_e"][:4][
+        r["fate"][:4] == "orbits white dwarf"])
+
+
+@needs_grid
+def test_innermost_agb_survivors():
+    # Mustill & Villaver 2012 find the innermost Jovian survivors leaving the AGB at about 2 AU
+    # (1 M☉) and 10 AU (5 M☉) with Vassiliadis & Wood models. On MIST: 3.65 and 13.9 AU
+    # (regression bands; the Validation table holds the comparison)
+    for m, grid, band in ((1.0, np.arange(1.0, 6.01, 0.1), (3.0, 4.5)),
+                          (5.0, np.arange(3.0, 25.01, 0.25), (11.0, 17.0))):
+        hist = co.star_history(evolution.build_track(m, 0.0))
+        r = co.evolve_planets(hist, grid, [317.8] * len(grid), [0.9] * len(grid),
+                              [True] * len(grid), 3e6)
+        first = np.flatnonzero(r["fate"] != "engulfed")[0]
+        assert band[0] < r["final_a_au"][first] < band[1]
 
 
 @needs_grid
