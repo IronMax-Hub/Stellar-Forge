@@ -11,7 +11,8 @@
 // On the phone, Android's heat status can lower it for a while
 // (qualityForThermalStatus), so the phone never runs hot to show it.
 
-import type { AccretionMode } from "../aionStubs";
+/** "none": an isolated stellar black hole with no gas, so only the lensed sky shows. */
+export type AccretionMode = "thin-disc" | "hot-flow" | "none";
 
 export type BlackHoleQualityLevel = "standard" | "medium" | "high";
 

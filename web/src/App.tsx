@@ -1,5 +1,5 @@
 // The app: Star Builder (Phases 1-2), Experiments (Phase 3), Inside the Star (Phase 4), Planets (Phase 5)
-// and System Timeline (Phase 6).
+// System Timeline (Phase 6) and Physics Chapters (Phase 7).
 // Star Builder: pick a mass and [Fe/H] from the exported grid and scrub a star's life, then see its
 // remnant. Every number shown comes from web/public/data, written by `python -m stellarforge.export
 // web`; this file only selects, scales and draws.
@@ -12,6 +12,8 @@ import type { Grid, Meta, Provenance, Remnant, Track } from "./data/types";
 import Experiments from "./Experiments";
 import InsideTheStar from "./InsideTheStar";
 import Planets from "./Planets";
+import PhysicsChapters from "./PhysicsChapters";
+import FrameTime from "./FrameTime";
 import SystemTimeline, { type TimelineTarget } from "./SystemTimeline";
 import ProvTag from "./ProvTag";
 import StarNote from "./StarNote";
@@ -83,6 +85,7 @@ export default function App() {
   }, []);
   return (
     <>
+      {import.meta.env.DEV && <FrameTime />}
       {stale && <p className="stale-data" role="alert">{stale}</p>}
       <nav className="tabs" aria-label="Views">
         <button aria-pressed={view === "star"} onClick={() => show("star")}>Star Builder</button>
@@ -90,12 +93,14 @@ export default function App() {
         <button aria-pressed={view === "inside"} onClick={() => show("inside")}>Inside the Star</button>
         <button aria-pressed={view === "planets"} onClick={() => show("planets")}>Planets</button>
         <button aria-pressed={view === "timeline"} onClick={() => show("timeline")}>System Timeline</button>
+        <button aria-pressed={view === "physics"} onClick={() => show("physics")}>Physics</button>
       </nav>
       <div hidden={view !== "star"}><StarBuilder {...shared} active={view === "star"} /></div>
       {opened.has("experiments") && <div hidden={view !== "experiments"}><Experiments /></div>}
       {opened.has("inside") && <div hidden={view !== "inside"}><InsideTheStar {...shared} active={view === "inside"} /></div>}
       {opened.has("planets") && <div hidden={view !== "planets"}><Planets {...shared} active={view === "planets"} onOpenTimeline={openTimeline} /></div>}
       {opened.has("timeline") && <div hidden={view !== "timeline"}><SystemTimeline {...shared} active={view === "timeline"} target={target} /></div>}
+      {opened.has("physics") && <div hidden={view !== "physics"}><PhysicsChapters /></div>}
     </>
   );
 }

@@ -373,6 +373,10 @@ dd {
 .result-table {
   border-collapse: collapse;
   font-size: 0.85rem;
+  /* wide tables scroll inside themselves on narrow screens */
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .result-table th,
@@ -424,7 +428,8 @@ dd {
 
 .cell-stats {
   display: grid;
-  grid-template-columns: max-content 1fr;
+  grid-template-columns: max-content minmax(0, 1fr);
+  overflow-wrap: anywhere;
   gap: 0.25rem 1rem;
   margin: 0;
   font-size: 0.9rem;
@@ -577,4 +582,64 @@ button.prov {
   gap: 0.4rem;
   margin: 0 0 0.75rem;
   font-size: 0.85rem;
+}
+
+/* Phase 7: the optional 3D system map, at most 1280 × 720 */
+.system-3d {
+  flex: 1 1 460px;
+  max-width: 1280px;
+}
+
+.system-3d canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  max-height: 720px;
+  border-radius: 6px;
+  background: #05060a;
+}
+
+/* Phase 7: Physics Chapters */
+.chapter-tabs {
+  margin: 0.5rem 0 1rem;
+}
+
+.chapter-card dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.3rem 1rem;
+  margin: 0;
+}
+
+.chapter-card dt {
+  color: #9a9cab;
+}
+
+.chapter-card dd {
+  margin: 0;
+}
+
+.chapter-card ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+@media (max-width: 480px) {
+  .chapter-card dl {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Phase 7: development-mode frame-time read-out */
+.frame-time {
+  position: fixed;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  z-index: 10;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  background: rgba(10, 11, 18, 0.85);
+  color: #9a9cab;
+  font: 0.75rem "IBM Plex Mono", monospace;
+  pointer-events: none;
 }

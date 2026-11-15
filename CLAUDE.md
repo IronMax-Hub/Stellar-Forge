@@ -32,5 +32,3 @@ A change that breaks one of these is rejected.
 - Python 3.12 lives in `.venv/` (made by uv, which is at `~/.local/bin/uv`). System Python stays as it is.
 - Each phase has its own branch, merged into `development` when its "Done when" is met.
 - Documents go in `documentation/`. Downloaded papers stay out of Git; the repository is public.
-- `web/src/rendering/aionStubs.ts` holds provisional types for the copied views; later phases
-  replace them with contract blocks.

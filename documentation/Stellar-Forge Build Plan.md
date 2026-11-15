@@ -680,7 +680,7 @@ The plan models single stars. The binary stability limits ported from Aion Forge
 4. Web view **System Timeline**:
     - a 2D orbit map with a time scrubber: the star swells, the habitable zone moves out, orbits widen, and engulfed planets vanish;
     - an event log;
-    - the optional 3D system view. Its copied code solves Kepler's equation (`systemView.ts: eccentricAnomaly`) and maps temperature to ring ice (`rings.ts: ringIciness`); before it is wired in, Python exports the orbital positions and the ring iciness, so `web/` keeps no physical formula (ground rule 2; scientific audit).
+    - the optional 3D system view. Its copied code solves Kepler's equation (`systemView.ts: eccentricAnomaly`) and maps temperature to ring ice (`rings.ts: ringIciness`); before it is wired in, Python exports the orbital positions and the ring iciness, so `web/` keeps no physical formula (ground rule 2; scientific audit). Phase 7 step 4 settles this: positions along each exported ellipse are animation only, and the planet globes with their ring iciness were removed in step 5.
 
 **Checks** (numbers in Validation): the Solar System reference case; when Earth leaves the habitable zone; supernova survival; the shoreline label on Solar System planets; the escape rate against Owen & Wu's formula.
 
@@ -829,6 +829,19 @@ The plan models single stars. The binary stability limits ported from Aion Forge
     - **Prescription toggle:** each remnant's `alternative` now carries its radius, how it formed and its provenance (`stellarforge/remnants.py`), so Star Builder's remnant card switches between Fryer delayed and rapid, or, for a white dwarf, between the MIST final mass and Cummings et al.'s relation. The Cummings white dwarf has no radius or cooling sequence of its own; the card says the cooling shown is for the MIST mass.
     - **Provenance panel:** every provenance label is now a button (`web/src/ProvTag.tsx`) that opens the label's meaning, how the value was made, its warnings, and the dataset, models, parameters, code and sources from the file's `meta`. Values that had no label before (for example a planet's orbit, or the snow line) still have none, so "every displayed value opens its provenance" is **not yet met**.
     - **Experiments:** the last hovered cell stays in the read-out, so its label can be clicked.
+
+- **Step 4, the 3D system view (15 November 2026):** a "3D view" box in System Timeline (off by default) swaps the 2D map for `web/src/SystemView3D.tsx`, built on the copied `rendering/system/systemView.ts`. It reads the same a, e, star radius, colour and habitable zone as the 2D map at the scrubber's age; orbits and the star are to scale, planets (and a star too small to see) are enlarged, and each planet's place along its ellipse is animation only. Pixel ratio 1, at most 1280 × 720, and nothing is drawn while the tab is hidden; under reduced motion it redraws only when something changes.
+
+- **Step 5, stubs (15 November 2026):** `rendering/aionStubs.ts` is gone. `starColour.ts` takes `Rgb` from `data/types.ts`; the black-hole view declares its own input types. No phase exports surface or atmosphere data, so the copied planet globes (`rendering/planet/`) were deleted, with `systemLayout.ts` and `util/rng.ts`, which only they and the cut parts of `systemView.ts` used; `systemView.ts` keeps only what the 3D view draws. The removals are recorded in `PROVENANCE.md`.
+
+- **Step 6, Physics Chapters (15 November 2026):** a Physics tab (`web/src/PhysicsChapters.tsx`) with seven chapters — where the numbers come from, stars, remnants, experiments, inside the star, planet formation and planets through the star's life — in Aion Forge's card structure (statement, how, source, limits, code), all text new. The text holds no computed values; it points to each file's provenance panel for the values used. Phase 6.2 has a card marked planned, since it is not built.
+
+- **Step 7, frame-time read-out (15 November 2026):** in development mode (`make dev`) a corner read-out (`web/src/FrameTime.tsx`) shows the mean time between animation frames, the frame rate and the worst frame over each second. Production builds leave it out.
+
+- **Step 8, browser check (15 November 2026), partly done:**
+    - **Chromium 156 (the Claude app's built-in browser):** every view, every Experiments tab and the 3D system map open with no error at 1024 px and at 375 px. At 375 px System Timeline scrolled sideways: the Fates table and the star's warnings were too wide. Wide tables now scroll inside themselves, and the stats list wraps long words. After that fix no view is wider than the screen.
+    - **Chrome 157 and Firefox 158, headless, first load only:** Chrome draws Star Builder at 1280 and 375 px. Firefox's screenshot is taken before the tracks arrive, so it shows only the tabs and "Loading tracks…".
+    - **Still to do by hand:** every view in Chrome 157 and Firefox 158, and the frame time on the G210 (Validation). The built-in browser's pane was hidden, which pauses animation, so no frame rate was measured.
 
 **Deferred:** a discovery catalogue of notable results (a pair-instability outcome, a surviving planetary system) waits until the core pipeline works end to end.
 

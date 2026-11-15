@@ -71,7 +71,7 @@ Every physics module was read against the paper or dataset it names, using the l
 
 They are correct transcriptions, but `disk.sigma_gas` and `ida_lin_2013.sigma_gas` now describe different disks under the same name.
 
-**L4. Copied rendering code that will need Python inputs.** `rendering/system/systemView.ts: eccentricAnomaly` solves Kepler's equation and `rendering/planet/rings.ts: ringIciness` maps temperature to ice. No view uses them yet; when the 3D system view arrives (Phase 6 or 7), ground rule 2 needs the positions or the iciness exported from Python, or Kepler's equation explicitly accepted as animation.
+**L4. Copied rendering code that will need Python inputs.** `rendering/system/systemView.ts: eccentricAnomaly` solves Kepler's equation and `rendering/planet/rings.ts: ringIciness` maps temperature to ice. No view uses them yet; when the 3D system view arrives (Phase 6 or 7), ground rule 2 needs the positions or the iciness exported from Python, or Kepler's equation explicitly accepted as animation. *Resolved in Phase 7 (15 November 2026): Kepler's equation is accepted as animation (step 4), and `rings.ts` was deleted with the planet globes (step 5).*
 
 **L5. Plan drift.** The reuse table names `stellarforge/imf.py` and `stellarforge/planets/mass_radius.py`. Kroupa sampling lives in `experiments.py` and the mass–radius relation in `planets/radius.py`.
 
