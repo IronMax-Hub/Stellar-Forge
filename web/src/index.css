@@ -578,3 +578,18 @@ button.prov {
   margin: 0 0 0.75rem;
   font-size: 0.85rem;
 }
+
+/* Phase 7: the optional 3D system map, at most 1280 × 720 */
+.system-3d {
+  flex: 1 1 460px;
+  max-width: 1280px;
+}
+
+.system-3d canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  max-height: 720px;
+  border-radius: 6px;
+  background: #05060a;
+}

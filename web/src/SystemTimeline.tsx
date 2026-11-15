@@ -12,6 +12,7 @@ import ProvTag from "./ProvTag";
 import StarNote from "./StarNote";
 import { MetaContext } from "./data/metaContext";
 import { fmtFeh, indexAtAge, nearest, skipWhileHidden, type StarProps } from "./currentStar";
+import SystemView3D, { type SystemFrame } from "./SystemView3D";
 
 const DATA = `${import.meta.env.BASE_URL}data/`;
 const SOLAR = "planets/solar_system.json";
@@ -84,6 +85,8 @@ function SystemTimeline({ star, setStar, show, target }: StarProps & { target: T
   const file = solar ? SOLAR : cell?.timeline_file ?? null;
   const doc = useTimeline(file ?? SOLAR);
   const shown = file === null ? population : doc;
+  // Optional 3D map (Phase 7); the 2D map is the default
+  const [threeD, setThreeD] = useState(false);
   return (
     <main className="experiments">
       <header>
@@ -99,7 +102,7 @@ function SystemTimeline({ star, setStar, show, target }: StarProps & { target: T
       {typeof shown === "string" && <p role="alert">{shown}</p>}
       {file !== null && doc !== null && typeof doc === "object" && (
         <TimelineView key={`${file}:${index}`} meta={doc.meta} timeline={doc.timeline} index={index}
-          ageYr={star.age_yr} onAge={(age_yr) => setStar({ ...star, age_yr })} />
+          ageYr={star.age_yr} onAge={(age_yr) => setStar({ ...star, age_yr })} threeD={threeD} setThreeD={setThreeD} />
       )}
     </main>
   );
@@ -183,8 +186,9 @@ const fmtAge = (yr: number) => (yr >= 1e9 ? `${(yr / 1e9).toFixed(3)} Gyr` : yr 
 const css = ([r, g, b]: number[]) => `rgb(${Math.round(255 * r)}, ${Math.round(255 * g)}, ${Math.round(255 * b)})`;
 const label = (p: TimelinePlanet, k: number) => p.name ?? `planet ${k + 1} (${p.class_at_formation})`;
 
-function TimelineView({ meta, timeline, index, ageYr, onAge }: {
+function TimelineView({ meta, timeline, index, ageYr, onAge, threeD, setThreeD }: {
   meta: Meta; timeline: Timeline; index: number; ageYr: number; onAge: (age_yr: number) => void;
+  threeD: boolean; setThreeD: (on: boolean) => void;
 }) {
   const star = timeline.star;
   const n = star.age_yr.length;
@@ -241,6 +245,15 @@ function TimelineView({ meta, timeline, index, ageYr, onAge }: {
   const r = (a: number) => Math.max(0, ((Math.log10(a) - Math.log10(A[0])) / (Math.log10(A[1]) - Math.log10(A[0]))) * outer);
   const hzIn = alongNullable(star.hz_inner_au, s), hzOut = alongNullable(star.hz_outer_au, s);
   const radius = along(star.radius_au, s);
+  // The 3D camera is framed once per system, on its widest orbit or largest star radius over the whole track
+  const extentAu = useMemo(() => Math.max(...star.radius_au, ...planets.flatMap((p) => p.orbit_apocentre_au)), [star, planets]);
+  const frame: SystemFrame | null = threeD ? {
+    starRadiusAu: radius, rgb: star.rgb[i], hzInAu: hzIn, hzOutAu: hzOut,
+    planets: planets.map((p, k) => {
+      const a = orbitAt(p, s);
+      return a === null || age < formedAt[k] ? null : { a_au: a, e: orbitAt(p, s, "orbit_e")!, colour: CLASS_COLOURS[p.class_at_formation], size: sizeOf(p) / 2.5 };
+    }),
+  } : null;
   return (
     <MetaContext value={meta}>
       <section>
@@ -252,6 +265,7 @@ function TimelineView({ meta, timeline, index, ageYr, onAge }: {
             <output>{fmtAge(age)}</output>
             <input type="range" min={0} max={n - 1} step={0.01} value={s} onChange={(e) => { setPlaying(false); setS(+e.target.value); publish(along(star.age_yr, +e.target.value)); }} />
           </label>
+          <label className="check"><input type="checkbox" checked={threeD} onChange={(e) => setThreeD(e.target.checked)} /> 3D view</label>
         </div>
         <dl className="cell-stats">
           <dt>Phase</dt><dd>{star.phase[i]}</dd>
@@ -261,7 +275,8 @@ function TimelineView({ meta, timeline, index, ageYr, onAge }: {
           {star.flags.length > 0 && <><dt>Track warnings</dt><dd className="flags" title="These apply somewhere along the whole track, not necessarily at this age">{star.flags.join("; ")}</dd></>}
         </dl>
         <div className="system-view">
-          <svg viewBox={`0 0 ${S} ${S}`} width={S} height={S} role="img" aria-label={`${timeline.name} at ${fmtAge(age)}, seen from above`}>
+          {frame && <SystemView3D frame={frame} extentAu={extentAu} label={`${timeline.name} at ${fmtAge(age)}, in 3D`} />}
+          {!frame && <svg viewBox={`0 0 ${S} ${S}`} width={S} height={S} role="img" aria-label={`${timeline.name} at ${fmtAge(age)}, seen from above`}>
             {hzIn !== null && hzOut !== null && (
               <circle cx={c} cy={c} r={(r(hzIn) + r(hzOut)) / 2} className="hz-band" strokeWidth={Math.max(1, r(hzOut) - r(hzIn))} />
             )}
@@ -285,7 +300,7 @@ function TimelineView({ meta, timeline, index, ageYr, onAge }: {
                 </g>
               );
             })}
-          </svg>
+          </svg>}
           <ol className="event-log">
             {events.map((e, j) => (
               <li key={j} className={e.age_yr <= age ? "past" : ""}>
@@ -295,7 +310,9 @@ function TimelineView({ meta, timeline, index, ageYr, onAge }: {
             ))}
           </ol>
         </div>
-        <p className="source">Orbits and the star on one log scale (0.003–300 AU), each drawn through its pericentre and apocentre with the planet at its pericentre; planet sizes are enlarged; the green band is the habitable zone. Shaded star colour from its temperature (derived in Python). {meta.models.orbits}.</p>
+        <p className="source">{frame
+          ? "Orbits and the star to scale (drag to turn, scroll to zoom); planets, and a star too small to see, are enlarged; each planet's place along its orbit is animation only; the green ring is the habitable zone."
+          : "Orbits and the star on one log scale (0.003–300 AU), each drawn through its pericentre and apocentre with the planet at its pericentre; planet sizes are enlarged; the green band is the habitable zone."} Shaded star colour from its temperature (derived in Python). {meta.models.orbits}.</p>
       </section>
       <section>
         <h2>Fates</h2>

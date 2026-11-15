@@ -830,6 +830,8 @@ The plan models single stars. The binary stability limits ported from Aion Forge
     - **Provenance panel:** every provenance label is now a button (`web/src/ProvTag.tsx`) that opens the label's meaning, how the value was made, its warnings, and the dataset, models, parameters, code and sources from the file's `meta`. Values that had no label before (for example a planet's orbit, or the snow line) still have none, so "every displayed value opens its provenance" is **not yet met**.
     - **Experiments:** the last hovered cell stays in the read-out, so its label can be clicked.
 
+- **Step 4, the 3D system view (15 November 2026):** a "3D view" box in System Timeline (off by default) swaps the 2D map for `web/src/SystemView3D.tsx`, built on the copied `rendering/system/systemView.ts`. It reads the same a, e, star radius, colour and habitable zone as the 2D map at the scrubber's age; orbits and the star are to scale, planets (and a star too small to see) are enlarged, and each planet's place along its ellipse is animation only. Pixel ratio 1, at most 1280 × 720, and nothing is drawn while the tab is hidden; under reduced motion it redraws only when something changes.
+
 **Deferred:** a discovery catalogue of notable results (a pair-instability outcome, a surviving planetary system) waits until the core pipeline works end to end.
 
 **Done when:** every view is reachable; every displayed value opens its provenance; `make data-status` is clean after `make all-data`; the first load takes under 3 seconds locally; the 3D toggle works, including the system view; and both browsers pass (Validation rows 7).
