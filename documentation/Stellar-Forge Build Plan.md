@@ -819,6 +819,17 @@ The plan models single stars. The binary stability limits ported from Aion Forge
 7. **Frame-time read-out** in development mode.
 8. **Browser check:** every view by hand in Chrome 157 and Firefox 158, also at 375 px width.
 
+**Built so far, branch `phase-7-observatory`:**
+
+- **Step 1, data freshness (15 November 2026):** `scripts/data_status.py` behind `make data-status`, `make all-data`, a one-line warning at the end of `make check`, and the app's start-up banner from `web/public/data/index.json` (shape in `contract/index.fixture.json`). The code check compares each file's generator commit with the last commit that changed `stellarforge/`. The banner reports schema versions only; files made by older code on the current schema are listed by `make data-status`. First run: all 300 files are on schema 11 but were made with uncommitted Phase 6.1 code, so all are listed until `make all-data` is rerun.
+
+- **Step 2, shared star and time (15 November 2026):** one current star (mass, [Fe/H]) and age, held by the app (`web/src/currentStar.ts`). Each view shows the exported star nearest to it and says so when the two differ; no view blends files. Picking a star or an age in any view sets it for all, and each view links to the others. Changes from before: Star Builder keeps the age, not the slider position, when the mass or [Fe/H] changes; System Timeline shows the Solar System only for the Sun (1 M☉, [Fe/H] 0) and the nearest planet cell otherwise. Inside the Star has one exported model, so it only reports which star it shows.
+
+- **Step 3, provenance and prescriptions (15 November 2026, schema version 12):**
+    - **Prescription toggle:** each remnant's `alternative` now carries its radius, how it formed and its provenance (`stellarforge/remnants.py`), so Star Builder's remnant card switches between Fryer delayed and rapid, or, for a white dwarf, between the MIST final mass and Cummings et al.'s relation. The Cummings white dwarf has no radius or cooling sequence of its own; the card says the cooling shown is for the MIST mass.
+    - **Provenance panel:** every provenance label is now a button (`web/src/ProvTag.tsx`) that opens the label's meaning, how the value was made, its warnings, and the dataset, models, parameters, code and sources from the file's `meta`. Values that had no label before (for example a planet's orbit, or the snow line) still have none, so "every displayed value opens its provenance" is **not yet met**.
+    - **Experiments:** the last hovered cell stays in the read-out, so its label can be clicked.
+
 **Deferred:** a discovery catalogue of notable results (a pair-instability outcome, a surviving planetary system) waits until the core pipeline works end to end.
 
 **Done when:** every view is reachable; every displayed value opens its provenance; `make data-status` is clean after `make all-data`; the first load takes under 3 seconds locally; the 3D toggle works, including the system view; and both browsers pass (Validation rows 7).

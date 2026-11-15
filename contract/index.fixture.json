@@ -1,0 +1,8 @@
+{
+  "schema_version": 12,
+  "files": [
+    {"file": "tracks_feh_+0.0.json", "schema_version": 12, "target": "export"},
+    {"file": "planets/systems_000.json", "schema_version": 9, "target": "planets"},
+    {"file": "experiments/broken.json", "schema_version": null, "target": "experiments"}
+  ]
+}

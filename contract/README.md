@@ -7,7 +7,7 @@ web loader parses it. Both assert the same `schema_version`. The tests check sha
 Changing the format: edit the fixture, raise `schema_version` by one in the fixture,
 `stellarforge/__init__.py` and `web/src/data/types.ts`, and update both sides until both tests pass.
 
-Schema version 11 (eccentricities: `e` on `systems` planets; `e`, `final_e` and the `orbit_e`, `orbit_pericentre_au` and `orbit_apocentre_au` knots on `timeline` planets; version 10 added the `timeline` block and each `population` cell's `timeline_file`; version 9 added validity `flags` on each `population` cell; version 8 added the `population` and `systems` blocks; version 7 added `profiles`, version 6 `polytropes`, version 5 the `substituted` provenance, version 4 the
+Schema version 12 (the remnant's `alternative` gains `radius_km`, `how` and `provenance`, so the app's prescription toggle can show either prescription in full; version 11 added eccentricities: `e` on `systems` planets; `e`, `final_e` and the `orbit_e`, `orbit_pericentre_au` and `orbit_apocentre_au` knots on `timeline` planets; version 10 added the `timeline` block and each `population` cell's `timeline_file`; version 9 added validity `flags` on each `population` cell; version 8 added the `population` and `systems` blocks; version 7 added `profiles`, version 6 `polytropes`, version 5 the `substituted` provenance, version 4 the
 `experiment` block; version 3 added `remnant`, version 2 moved
 `track` inside `grid`). The fixture's numbers are hand-written test data, not physics.
 
@@ -77,7 +77,8 @@ Fields marked "or null" are null when there is no remnant or MIST gives no value
 | `provenance` | provenance | `predicted` for core collapse; the track's provenance for a white dwarf's MIST mass (the track's own `provenance` says where the final and core masses came from); `derived` when there is no remnant |
 | `prescription` | string | the rule that gave `type` and `mass_msun` |
 | `how` | string | how it formed, in a sentence |
-| `alternative.prescription`, `.type`, `.mass_msun` | string, type, number or null | the other prescription's answer (rapid for delayed; Cummings et al. 2018 for a white dwarf) |
+| `alternative.prescription`, `.type`, `.mass_msun` | string, type, number or null | the other prescription's answer (rapid for delayed; Cummings et al. 2018 for a white dwarf); `no alternative` when none applies |
+| `alternative.radius_km`, `.how`, `.provenance` | number or null, string, provenance | the same three values as above, under the other prescription; the radius is null for the Cummings white dwarf, whose cooling sequence is not computed |
 | `final_mass_msun`, `he_core_mass_msun`, `co_core_mass_msun` | number or null | the track's last state, M☉; null where MIST gives no core mass |
 | `flags` | list of strings | validity warnings; always includes `single_star_assumed` |
 | `cooling` | object or null | white dwarfs: `cooling_age_yr`, `log_l_lsun`, `log_teff_k`, `radius_km`, equally long |
@@ -259,3 +260,17 @@ planet by planet in the same order, and as `planets/solar_system.json`, the refe
 | `events[]` | `{age_yr, kind, detail}` | `formed`, `enters habitable zone`, `leaves habitable zone`, `crosses shoreline`, `envelope stripped`, `class changed`, `engulfed`, `unbound`, `orbits remnant` or `track ends`; `detail` says it in words |
 | `flags` | strings | validity warnings, such as the shoreline and escape disagreeing |
 | `provenance` | provenance | always `predicted` |
+
+## `index.json` — which data files are current (`scripts/data_status.py`, Phase 7)
+
+Written to `web/public/data/index.json` by `make data-status` and at the end of every export target.
+It is not a document and carries no `meta`; its shape is `contract/index.fixture.json`, checked by
+`tests/test_data_status.py` and the web contract test. The app reads it at start-up and names, in
+one banner, every file whose `schema_version` differs from its own.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `schema_version` | integer | the contract version of the code that wrote the index |
+| `files[].file` | string | a data file, relative to `web/public/data/` |
+| `files[].schema_version` | integer or null | the version in that file's `meta`; null when it has none |
+| `files[].target` | string | the make target that rebuilds it |

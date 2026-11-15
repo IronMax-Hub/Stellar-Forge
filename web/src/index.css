@@ -505,3 +505,76 @@ dd {
   font: inherit;
   text-decoration: underline;
 }
+
+/* Phase 7: stale or missing data, named at start-up */
+.stale-data {
+  margin: 0;
+  padding: 0.5rem 1rem;
+  background: #3d3420;
+  color: #f0d58a;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+/* Phase 7: a provenance label is a button that opens its value's provenance */
+button.prov {
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+
+.prov-panel {
+  max-width: min(44rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  padding: 0;
+  border: 1px solid #3a3d52;
+  border-radius: 6px;
+  background: #10121a;
+  color: #e8e8ee;
+  font-size: 0.9rem;
+}
+
+.prov-panel::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.prov-panel > div {
+  padding: 1rem 1.25rem;
+}
+
+.prov-panel h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.05rem;
+  font-weight: 500;
+}
+
+.prov-panel dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.4rem 1rem;
+  margin: 0 0 1rem;
+}
+
+.prov-panel dt {
+  color: #9a9cab;
+}
+
+.prov-panel dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.prov-panel a {
+  color: #8ad8f0;
+}
+
+/* Phase 7: which prescription the remnant card shows */
+.prescriptions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+}

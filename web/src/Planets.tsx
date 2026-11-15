@@ -3,12 +3,16 @@
 // (`make planets`). The selectors snap to the exported grid. Nothing here computes a physical
 // value: every number is read from the files, and the panels only regroup them for drawing.
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, memo, useEffect, useMemo, useState } from "react";
 import { Curves } from "./Experiments";
 import { parseDocument } from "./data/loader";
 import type { Calibration, Meta, Panel, PlanetClass, PlanetSystem, Population, PopulationCell, Systems } from "./data/types";
 import { PLANET_CLASSES } from "./data/types";
 import type { TimelineTarget } from "./SystemTimeline";
+import ProvTag from "./ProvTag";
+import StarNote from "./StarNote";
+import { MetaContext } from "./data/metaContext";
+import { fmtFeh, nearest, skipWhileHidden, type StarProps } from "./currentStar";
 
 const DATA = `${import.meta.env.BASE_URL}data/`;
 
@@ -39,7 +43,9 @@ export function CalibrationBadge({ label }: { label: Calibration }) {
   return <span className={`calib calib-${label.replace(/ /g, "-")}`}>{label}</span>;
 }
 
-export default function Planets({ onOpenTimeline }: { onOpenTimeline: (t: TimelineTarget) => void }) {
+type Props = StarProps & { onOpenTimeline: (t: TimelineTarget) => void };
+
+function Planets(props: Props) {
   const [doc, setDoc] = useState<{ meta: Meta; population: Population } | string | null>(null);
   useEffect(() => {
     fetch(DATA + "planets/population.json")
@@ -61,19 +67,22 @@ export default function Planets({ onOpenTimeline }: { onOpenTimeline: (t: Timeli
       </header>
       {doc === null && <p>Loading…</p>}
       {typeof doc === "string" && <p role="alert">{doc}</p>}
-      {doc !== null && typeof doc === "object" && <PopulationView meta={doc.meta} population={doc.population} onOpenTimeline={onOpenTimeline} />}
+      {doc !== null && typeof doc === "object" && <PopulationView meta={doc.meta} population={doc.population} {...props} />}
     </main>
   );
 }
 
-function PopulationView({ meta, population, onOpenTimeline }: { meta: Meta; population: Population; onOpenTimeline: (t: TimelineTarget) => void }) {
+export default memo(Planets, skipWhileHidden);
+
+function PopulationView({ meta, population, star, setStar, show, onOpenTimeline }: Props & { meta: Meta; population: Population }) {
   const masses = population.star_masses_msun, fehs = population.feh_values;
-  const [mi, setMi] = useState(() => masses.reduce((b, m, k) => (Math.abs(Math.log(m)) < Math.abs(Math.log(masses[b])) ? k : b), 0));
-  const [fi, setFi] = useState(() => fehs.reduce((b, f, k) => (Math.abs(f) < Math.abs(fehs[b]) ? k : b), 0));
+  // The cell nearest the current star; a slider sets the current star to its cell
+  const mi = nearest(masses, star.mass_msun, true), fi = nearest(fehs, star.feh);
   const cell = population.cells[fi * masses.length + mi];
+  const pick = (m: number, f: number) => setStar({ ...star, mass_msun: masses[m], feh: fehs[f] });
   const [lo, hi] = population.calibration_feh;
   return (
-    <>
+    <MetaContext value={meta}>
       <section>
         <h2>Conclusions</h2>
         <ul className="conclusions">
@@ -86,16 +95,20 @@ function PopulationView({ meta, population, onOpenTimeline }: { meta: Meta; popu
         <label>
           Star mass
           <output>{masses[mi]} M☉</output>
-          <input type="range" min={0} max={masses.length - 1} value={mi} onChange={(e) => setMi(+e.target.value)} />
+          <input type="range" min={0} max={masses.length - 1} value={mi} onChange={(e) => pick(+e.target.value, fi)} />
         </label>
         <label>
           [Fe/H]
-          <output>{fehs[fi] > 0 ? "+" : ""}{fehs[fi]}</output>
-          <input type="range" min={0} max={fehs.length - 1} value={fi} onChange={(e) => setFi(+e.target.value)} />
+          <output>{fmtFeh(fehs[fi])}</output>
+          <input type="range" min={0} max={fehs.length - 1} value={fi} onChange={(e) => pick(mi, +e.target.value)} />
         </label>
       </section>
-      <CellView key={cell.systems_file} cell={cell} onOpenTimeline={onOpenTimeline} />
-    </>
+      <StarNote star={star} shown={{ mass_msun: cell.m_star_msun, feh: cell.feh }} />
+      <p className="note">
+        <button className="linklike" onClick={() => { pick(mi, fi); show("star"); }}>This star's life in Star Builder</button>
+      </p>
+      <CellView key={cell.systems_file} cell={cell} onFollow={(index) => { pick(mi, fi); onOpenTimeline({ index }); }} />
+    </MetaContext>
   );
 }
 
@@ -121,7 +134,7 @@ function GiantOccurrence({ population }: { population: Population }) {
   );
 }
 
-function CellView({ cell, onOpenTimeline }: { cell: PopulationCell; onOpenTimeline: (t: TimelineTarget) => void }) {
+function CellView({ cell, onFollow }: { cell: PopulationCell; onFollow: (index: number) => void }) {
   const systems = useSystems(cell.systems_file);
   const [picked, setPicked] = useState<number | null>(null);
   const sample = typeof systems === "object" && systems !== null ? systems : null;
@@ -132,12 +145,12 @@ function CellView({ cell, onOpenTimeline }: { cell: PopulationCell; onOpenTimeli
         <h2>{cell.m_star_msun} M☉, [Fe/H] {cell.feh > 0 ? "+" : ""}{cell.feh} <CalibrationBadge label={cell.calibration} /></h2>
         <dl className="cell-stats">
           <dt>Systems simulated</dt><dd>{cell.n_systems.toLocaleString()} (seed {cell.seed})</dd>
-          <dt>Planets per star (≥ 0.1 M⊕)</dt><dd>{cell.planets_per_star}<span className="prov">predicted</span></dd>
+          <dt>Planets per star (≥ 0.1 M⊕)</dt><dd>{cell.planets_per_star}<ProvTag p={cell.provenance} what={`Planets per star: ${cell.planets_per_star}`} flags={cell.flags} /></dd>
           <dt>Snow line</dt><dd>{cell.a_ice_au} AU</dd>
           {cell.flags.length > 0 && <><dt>Warnings</dt><dd className="flags">{cell.flags.join("; ")}</dd></>}
           {PLANET_CLASSES.map((k) => (
             <Fragment key={k}><dt><i className="swatch" style={{ background: CLASS_COLOURS[k] }} />Systems with a {k}</dt>
-              <dd>{(100 * cell.host_share[k]).toFixed(1)}%<span className="prov">predicted</span></dd></Fragment>
+              <dd>{(100 * cell.host_share[k]).toFixed(1)}%<ProvTag p={cell.provenance} what={`Systems with a ${k}: ${(100 * cell.host_share[k]).toFixed(1)}%`} flags={cell.flags} /></dd></Fragment>
           ))}
         </dl>
       </section>
@@ -145,7 +158,7 @@ function CellView({ cell, onOpenTimeline }: { cell: PopulationCell; onOpenTimeli
       {systems === null && <p>Loading sample systems…</p>}
       {typeof systems === "string" && <p role="alert">{systems}</p>}
       {sample && <MassDistance sample={sample} picked={picked} onPick={setPicked} />}
-      {sample && chosen && <SystemDiagram sample={sample} system={chosen} onFollow={() => onOpenTimeline({ file: cell.timeline_file, index: chosen.index })} />}
+      {sample && chosen && <SystemDiagram sample={sample} system={chosen} onFollow={() => onFollow(chosen.index)} />}
     </>
   );
 }
@@ -255,8 +268,8 @@ function SystemDiagram({ sample, system, onFollow }: { sample: Systems; system: 
             {system.planets.map((p, k) => (
               <tr key={k}>
                 <td><i className="swatch" style={{ background: CLASS_COLOURS[p.class] }} />{p.class}</td>
-                <td>{p.mass_mearth}<span className="prov">{p.provenance}</span></td>
-                <td>{p.radius_rearth}<span className={`prov prov-${p.radius_provenance}`}>{p.radius_provenance}</span></td>
+                <td>{p.mass_mearth}<ProvTag p={p.provenance} what={`Planet mass: ${p.mass_mearth} M⊕`} /></td>
+                <td>{p.radius_rearth}<ProvTag p={p.radius_provenance} what={`Planet radius: ${p.radius_rearth} R⊕`} how="Chen & Kipping 2017 mass-radius relation, for display; never used to classify" /></td>
                 <td>{p.a_au}</td>
                 <td>{p.a_form_au}</td>
                 <td>{p.f_env < 1e-4 ? "< 0.01%" : `${(100 * p.f_env).toPrecision(3)}%`}</td>

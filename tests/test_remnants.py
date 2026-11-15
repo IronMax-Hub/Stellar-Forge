@@ -74,6 +74,12 @@ def test_every_grid_star_has_a_record():
             # the outcome (a "none" here would claim the star was destroyed)
             if r.provenance != "predicted":
                 assert r.alternative["type"] == r.type
+            # The alternative is a full record (schema 12): the prescription toggle shows it
+            alt = r.alternative
+            assert alt["how"] and alt["provenance"] in ("predicted", "derived")
+            assert (alt["radius_km"] is not None) == (alt["type"] in ("neutron star", "black hole"))
+            if alt["type"] == "black hole":
+                assert alt["radius_km"] == pytest.approx(2.953 * alt["mass_msun"], rel=1e-3)
 
 
 @needs_data

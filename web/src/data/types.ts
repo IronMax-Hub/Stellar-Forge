@@ -2,7 +2,7 @@
 // Python writes these values; nothing here computes one.
 
 /** Must equal SCHEMA_VERSION in stellarforge/__init__.py and the fixture's meta.schema_version. */
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 12;
 
 export type Provenance = "published" | "interpolated" | "substituted" | "derived" | "predicted";
 export const PROVENANCES: readonly Provenance[] = ["published", "interpolated", "substituted", "derived", "predicted"];
@@ -68,7 +68,7 @@ export interface Remnant {
   provenance: Provenance;
   prescription: string;
   how: string;
-  alternative: { prescription: string; type: RemnantType; mass_msun: number | null };
+  alternative: { prescription: string; type: RemnantType; mass_msun: number | null; radius_km: number | null; how: string; provenance: Provenance };
   final_mass_msun: number | null;
   he_core_mass_msun: number | null;
   co_core_mass_msun: number | null;
@@ -322,4 +322,11 @@ export interface StellarDocument {
   population?: Population;
   systems?: Systems;
   timeline?: Timeline;
+}
+
+/** web/public/data/index.json: every data file with the schema version it was written at and the
+ * make target that rebuilds it (scripts/data_status.py). Not a document: it carries no meta. */
+export interface DataIndex {
+  schema_version: number;
+  files: { file: string; schema_version: number | null; target: string }[];
 }

@@ -6,6 +6,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { parseDocument } from "./data/loader";
 import type { Experiment, Meta, Panel, PanelRow, Provenance } from "./data/types";
+import ProvTag from "./ProvTag";
+import { MetaContext } from "./data/metaContext";
 
 const DATA = `${import.meta.env.BASE_URL}data/experiments/`;
 /** The six Phase 3 experiments and Phase 4's zero-age extension, in the order the tabs show them. */
@@ -74,7 +76,7 @@ export default function Experiments() {
       {doc === undefined && <p>Loading…</p>}
       {typeof doc === "string" && <p role="alert">{doc}</p>}
       {typeof doc === "object" && (
-        <>
+        <MetaContext value={doc.meta}>
           <h2>{doc.experiment.title}</h2>
           <p>{doc.experiment.summary}</p>
           <p className="source">
@@ -89,14 +91,14 @@ export default function Experiments() {
               {p.kind === "table" && <Table panel={p} />}
             </section>
           ))}
-        </>
+        </MetaContext>
       )}
     </main>
   );
 }
 
-function ProvenanceTag({ p }: { p: Provenance | null }) {
-  return p ? <span className={`prov prov-${p}`}>{p}</span> : null;
+function ProvenanceTag({ p, what }: { p: Provenance | null; what: string }) {
+  return p ? <ProvTag p={p} what={what} /> : null;
 }
 
 /** Log or linear position of v between lo and hi, 0-1 (display scaling). */
@@ -171,7 +173,7 @@ function Heatmap({ panel }: { panel: Panel }) {
             return i < 0 ? null : <span key={t} style={{ top: `${((rows.length - 1 - i + 0.5) / rows.length) * 100}%` }}>{tickText(t)}</span>;
           })}
         </div>
-        <canvas ref={ref} width={W} height={H} onMouseMove={pick} onMouseLeave={() => setHover(null)}
+        <canvas ref={ref} width={W} height={H} onMouseMove={pick}
           aria-label={`${panel.title}: heatmap of ${panel.value_label} against ${panel.x_label} and ${panel.y_label}`} />
         <div className="x-ticks">
           {xTicks.map(({ t, left }) => <span key={t} style={{ left: `${left * 100}%` }}>{tickText(t)}</span>)}
@@ -184,9 +186,9 @@ function Heatmap({ panel }: { panel: Panel }) {
             {panel.y_label} {rows[hover.row].label}, {panel.x_label.replace(/ \(.*\)$/, "")} {fmt(panel.x_values[hover.col])}:{" "}
             <strong>{cellText(rows[hover.row], hover.col, panel.value_label)}</strong>{" "}
             {rows[hover.row].labels[hover.col] && rows[hover.row].values[hover.col] !== null && `(${fmt(rows[hover.row].values[hover.col]!)} ${panel.value_label}) `}
-            <ProvenanceTag p={rows[hover.row].provenance[hover.col]} />
+            <ProvenanceTag p={rows[hover.row].provenance[hover.col]} what={`${panel.title}: ${cellText(rows[hover.row], hover.col, panel.value_label)}`} />
           </>
-        ) : "Hover over a cell for its value and provenance."}
+        ) : "Hover over a cell for its value; its label opens the provenance."}
       </p>
       <div className="legend">
         {numbers.length > 0 && (
@@ -239,7 +241,7 @@ export function Curves({ panel }: { panel: Panel }) {
 
   return (
     <div className="curves">
-      <svg viewBox={`0 0 ${W} ${H}`} className="curve-plot" onMouseMove={pick} onMouseLeave={() => setHover(null)}
+      <svg viewBox={`0 0 ${W} ${H}`} className="curve-plot" onMouseMove={pick}
         role="img" aria-label={`${panel.title}: ${panel.y_label} against ${panel.x_label}`}>
         <rect x={PAD} y={10} width={W - PAD - 10} height={H - PAD - 10} className="frame" />
         {yTicks.map((t) => <text key={t} x={PAD - 6} y={y(t) + 4} textAnchor="end">{tickText(t)}</text>)}
@@ -254,11 +256,11 @@ export function Curves({ panel }: { panel: Panel }) {
         {panel.rows.map((r, k) => (
           <li key={r.label}>
             <i style={{ background: CURVE_COLOURS[k % CURVE_COLOURS.length] }} />{r.label}
-            {hover !== null && <>: <strong>{cellText(r, hover, panel.value_label)}</strong> <ProvenanceTag p={r.provenance[hover]} /></>}
+            {hover !== null && <>: <strong>{cellText(r, hover, panel.value_label)}</strong> <ProvenanceTag p={r.provenance[hover]} what={`${r.label}: ${cellText(r, hover, panel.value_label)}`} /></>}
           </li>
         ))}
       </ul>
-      <p className="readout">{hover !== null ? `${panel.x_label} ${fmt(xs[hover])}` : "Hover over the plot for each curve's value and provenance."}</p>
+      <p className="readout">{hover !== null ? `${panel.x_label} ${fmt(xs[hover])}` : "Hover over the plot for each curve's value; a label opens its provenance."}</p>
     </div>
   );
 }
@@ -276,7 +278,7 @@ function Table({ panel }: { panel: Panel }) {
             {panel.columns.map((c, k) => (
               <td key={c}>
                 {c.includes("sRGB") && r.labels[k] && <i className="swatch" style={{ background: `rgb(${r.labels[k]!.split(",").map((v) => Math.round(Number(v) * 255)).join(",")})` }} />}
-                {cellText(r, k, "")} <ProvenanceTag p={r.provenance[k]} />
+                {cellText(r, k, "")} <ProvenanceTag p={r.provenance[k]} what={`${r.label}, ${c}: ${cellText(r, k, "")}`} />
               </td>
             ))}
           </tr>
