@@ -21,7 +21,18 @@
 // Presentation only: it reads a black hole and never writes to it.
 
 import * as THREE from "three";
-import type { CentralBlackHole, GalaxyType } from "../aionStubs";
+import type { AccretionMode } from "./quality";
+
+export type GalaxyType = "spiral" | "elliptical" | "irregular";
+
+/** The view's input: the stellar black hole in Star Builder's remnant card. */
+export interface CentralBlackHole {
+  /** Event-horizon radius, km. */
+  horizonRadiusKm: number;
+  accretionMode: AccretionMode;
+  /** Its gas's hottest temperature, K. */
+  discPeakTemperatureK: number;
+}
 import type { BlackHoleQualityLevel } from "./quality";
 import { BLACK_HOLE_QUALITY } from "./quality";
 import vertexShader from "./shaders/blackHole.vert.glsl?raw";

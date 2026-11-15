@@ -1,41 +1,27 @@
-// What the system view draws besides its planets' globes: the host star as a
-// source of light, the hairline orbits, the starlight the planets are lit by,
-// and the planets' motion round their orbits.
-//
-// Why it exists: the galaxy view draws stars as light (a saturated core inside
-// a soft glow) and the planet view lights its globe with its star. The system
-// view sits between them and must look like the same universe: no solid grey
-// halo, no flat unlit discs, no orbit bands that thicken as the camera closes in.
+// What the 3D system view draws (SystemView3D.tsx): the host star as a source of
+// light, the planets' orbits as ellipses, the starlight the planets are lit by,
+// and where a planet is along its ellipse.
 //
 // How:
 // - The star: a sphere whose brightness falls toward its edge (limb darkening,
 //   as the Sun's does), in its display colour (starColour.ts) and outside the
 //   tone mapping so the colour is not washed to white, inside a restrained
 //   additive glow in the same colour.
-// - Orbits: one-pixel line loops, the same width at every zoom.
+// - Orbits: one-pixel ellipses, the same width at every zoom, through the
+//   exported a and e.
 // - Light: a point light at the star in its colour (no fall-off: planets are drawn
 //   enlarged, far from true scale, so a true fall-off would only mislead), and a
 //   faint fill so night sides are not pure black.
-// - A binary (BS4): when a planet orbits both stars, the pair circles its
-//   common centre, each star at its share of the separation, and planets of
-//   the primary alone ride with it; otherwise the companion is a fixed marker
-//   at its distance, with a label, drawn closer when it lies beyond the view.
-// - Orbits (SystemOrbits): each planet circles the star at its true period
-//   relative to the others (Kepler: P ∝ a^1.5 around one star), compressed so
-//   the innermost goes round once a minute. Where each starts is drawn from its
-//   own VISUAL sub-stream; the simulation says nothing about where a planet is
-//   "now". The clock stops while the camera glides and in the planet view, and
-//   never starts under reduced motion.
+// - Motion, animation only (Phase 7 step 4): each planet goes round at its period
+//   relative to the others (P ∝ a^1.5), compressed so the innermost goes round once
+//   a minute, and is placed along its ellipse by Kepler's equation. Neither is a
+//   result: the files say nothing about where a planet is "now".
 //
-// Assumptions and limits: sizes are not to scale. At true scale every planet,
-// and the star itself, would be far smaller than a pixel.
+// Assumptions and limits: planet sizes are not to scale.
 //
-// Presentation only: it reads a star's colour and never writes to the simulation.
+// Presentation only: it reads exported values and never computes a result.
 
 import * as THREE from "three";
-import type { BodyRef, Planet } from "../aionStubs";
-import { bodyKey } from "../aionStubs";
-import { createRNG, mixSeed, SALT } from "../../util/rng";
 
 // Limb darkening: brightness at the edge as a share of the centre's (the Sun's is about 0.4 in visible light)
 const LIMB_BRIGHTNESS = 0.45;
@@ -50,16 +36,10 @@ const GLOW_RADII = 7;
 const GLOW_TEXTURE_SIZE = 128;
 const GLOW_OPACITY = 0.6;
 
+/** Orbits are drawn at this many scene units per AU. */
+export const SYSTEM_UNITS_PER_AU = 2.5;
+
 const ORBIT_SEGMENTS = 256;
-const ORBIT_COLOUR = 0x4a525d;
-const ORBIT_OPACITY = 0.55;
-const CIRCUMBINARY_ORBIT_COLOUR = 0x8a7f6a;
-// Moons' orbits: a cooler, fainter line than the planets', so the two levels read apart
-const MOON_ORBIT_COLOUR = 0x6f8aa6;
-const MOON_ORBIT_OPACITY = 0.5;
-// The selected body's orbit, in the interface's selection amber
-const SELECTED_ORBIT_COLOUR = 0xe0a458;
-const SELECTED_ORBIT_OPACITY = 0.9;
 
 /** Starlight on the planets, as the planet view's at Earth's flux (PlanetView.ts). */
 export const SYSTEM_STARLIGHT_INTENSITY = 2.6;
@@ -176,146 +156,12 @@ export function keplerLine(path: KeplerPath, colour: THREE.ColorRepresentation, 
   return new THREE.LineLoop(geometry, new THREE.LineBasicMaterial({ color: colour, transparent: true, opacity, depthWrite: false }));
 }
 
-// The centre of mass's mark: a cross in a ring, the same size on screen at every zoom
-const BARYCENTRE_COLOUR = "rgba(200, 206, 214, 0.9)";
-const BARYCENTRE_HEIGHT = 0.03;
-const BARYCENTRE_TEXTURE_PX = 64;
-
-/** A binary's centre of mass: a cross in a ring that keeps its size on screen. */
-export function barycentreMarker(): THREE.Sprite {
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = BARYCENTRE_TEXTURE_PX;
-  const ctx = canvas.getContext("2d")!;
-  const c = BARYCENTRE_TEXTURE_PX / 2;
-  ctx.strokeStyle = BARYCENTRE_COLOUR;
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(4, c); ctx.lineTo(BARYCENTRE_TEXTURE_PX - 4, c);
-  ctx.moveTo(c, 4); ctx.lineTo(c, BARYCENTRE_TEXTURE_PX - 4);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(c, c, BARYCENTRE_TEXTURE_PX * 0.22, 0, 2 * Math.PI);
-  ctx.stroke();
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, sizeAttenuation: false, transparent: true, depthWrite: false }));
-  sprite.scale.setScalar(BARYCENTRE_HEIGHT);
-  return sprite;
-}
-
-/** A moon's orbit round its planet: one pixel wide, in a cooler, fainter colour than the planets' orbits. */
-export function moonOrbitLine(radius: number): THREE.LineLoop {
-  const line = orbitLine(radius);
-  const material = line.material as THREE.LineBasicMaterial;
-  material.color.set(MOON_ORBIT_COLOUR);
-  material.opacity = MOON_ORBIT_OPACITY;
-  return line;
-}
-
-/** Marks an orbit as the selected body's, or puts it back as it was drawn. */
-export function markOrbit(line: THREE.LineLoop, selected: boolean): void {
-  const material = line.material as THREE.LineBasicMaterial;
-  line.userData.drawn ??= { colour: material.color.getHex(), opacity: material.opacity };
-  const drawn = line.userData.drawn as { colour: number; opacity: number };
-  material.color.set(selected ? SELECTED_ORBIT_COLOUR : drawn.colour);
-  material.opacity = selected ? SELECTED_ORBIT_OPACITY : drawn.opacity;
-  line.userData.selected = selected;
-}
-
-/**
- * How visible a moon's orbit is, 0–1, from its radius on screen in pixels: hidden below
- * MOON_ORBIT_FADE_PX.from, where it would be a smudge round its planet, full from .to.
- */
-export function moonOrbitVisibility(radiusPx: number): number {
-  return Math.min(1, Math.max(0, (radiusPx - MOON_ORBIT_FADE_PX.from) / (MOON_ORBIT_FADE_PX.to - MOON_ORBIT_FADE_PX.from)));
-}
-export const MOON_ORBIT_FADE_PX = { from: 6, to: 20 } as const;
-
-/** The drawn opacity of a moon's orbit at this visibility; a selected one is always fully shown. */
-export function fadeMoonOrbit(line: THREE.LineLoop, visibility: number): void {
-  if (line.userData.selected) {
-    line.visible = true;
-    return;
-  }
-  const material = line.material as THREE.LineBasicMaterial;
-  material.opacity = MOON_ORBIT_OPACITY * visibility;
-  line.visible = visibility > 0;
-}
-
-/** A planet's orbit around both stars of a binary (BS4): the orbit's circle, dashed, in a warmer grey. */
-export function circumbinaryOrbitLine(radius: number): THREE.LineLoop {
-  const line = orbitLine(radius);
-  line.material = new THREE.LineDashedMaterial({
-    color: CIRCUMBINARY_ORBIT_COLOUR, transparent: true, opacity: ORBIT_OPACITY, depthWrite: false,
-    dashSize: (radius * 2 * Math.PI) / 120, gapSize: (radius * 2 * Math.PI) / 240,
-  });
-  line.computeLineDistances();
-  return line;
-}
-
-/** A planet's orbit: a one-pixel circle of this radius in the x–z plane. */
-export function orbitLine(radius: number): THREE.LineLoop {
-  const points = new Float32Array(ORBIT_SEGMENTS * 3);
-  for (let i = 0; i < ORBIT_SEGMENTS; i++) {
-    const angle = (i / ORBIT_SEGMENTS) * 2 * Math.PI;
-    points[i * 3] = radius * Math.cos(angle);
-    points[i * 3 + 2] = radius * Math.sin(angle);
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.BufferAttribute(points, 3));
-  return new THREE.LineLoop(geometry, new THREE.LineBasicMaterial({
-    color: ORBIT_COLOUR, transparent: true, opacity: ORBIT_OPACITY, depthWrite: false,
-  }));
-}
-
 /** The starlight planets are lit by, from the star at the group's origin, and the night-side fill. */
 export function systemLights(color: THREE.Color, intensity = SYSTEM_STARLIGHT_INTENSITY): THREE.Light[] {
   return [
     new THREE.PointLight(color, intensity, 0, 0),
     new THREE.AmbientLight(0xffffff, NIGHT_FILL_INTENSITY),
   ];
-}
-
-// A text label in the system view: its height as a share of the view's, and its canvas font
-const LABEL_HEIGHT = 0.032;
-const LABEL_FONT_PX = 28;
-const LABEL_COLOUR = "rgba(200, 206, 214, 0.9)";
-
-/** A one-line text label that stays the same size on screen, hanging below the point it is placed at. */
-export function labelSprite(text: string): THREE.Sprite {
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d")!;
-  const font = `${LABEL_FONT_PX}px "IBM Plex Mono", monospace`;
-  ctx.font = font;
-  canvas.width = Math.ceil(ctx.measureText(text).width) + 8;
-  canvas.height = Math.ceil(LABEL_FONT_PX * 1.4);
-  ctx.font = font;   // resizing the canvas resets its context
-  ctx.fillStyle = LABEL_COLOUR;
-  ctx.textBaseline = "middle";
-  ctx.fillText(text, 4, canvas.height / 2);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, sizeAttenuation: false, transparent: true, depthWrite: false }));
-  sprite.scale.set(LABEL_HEIGHT * canvas.width / canvas.height, LABEL_HEIGHT, 1);
-  sprite.center.set(0.5, 1.6);
-  return sprite;
-}
-
-// A distant companion's dot: its height as a share of the view's, so it shows at any zoom
-const DISTANT_STAR_DOT = 0.014;
-
-/**
- * A star far from the system's centre (BS4): the star itself, a glow dot that keeps its size on screen
- * so it shows when the star is smaller than a pixel, and a label under it.
- */
-export function distantStarMarker(color: THREE.Color, radius: number, label: string): THREE.Group {
-  const group = hostStarObject(color, radius);
-  const dot = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: glowTexture(), color, sizeAttenuation: false, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
-  }));
-  dot.scale.setScalar(DISTANT_STAR_DOT);
-  group.add(dot, labelSprite(label));
-  return group;
 }
 
 /** Frees a system group's GPU resources, textures included. */
@@ -331,69 +177,10 @@ export function disposeSystemGroup(group: THREE.Object3D): void {
   });
 }
 
-// ── Orbital motion ───────────────────────────────────────────────────────────
+// ── Orbital motion (animation only) ─────────────────────────────────────────
 
 /** The innermost planet goes round once in this many seconds on screen (owner decision). */
 export const INNER_ORBIT_SECONDS = 60;
-// The VISUAL sub-stream a planet's starting angle is drawn from (life.ts uses 1 and 2)
-const ORBIT_PHASE_STREAM = 3;
-
-/** Where a planet is on its orbit now, in world space. */
-export interface OrbitPlace {
-  /** Angle round the orbit from the +x axis, radians, about +y. */
-  angle: number;
-  /** The planet's centre. */
-  centre: THREE.Vector3;
-  /** Unit direction from the planet to its star. */
-  toStar: THREE.Vector3;
-}
-
-/** Something drawn with a planet that must know where it is: its light direction, its centre. */
-export type OrbitFollower = (place: OrbitPlace) => void;
-
-/**
- * A body on a Kepler ellipse (BS4): a binary's stars and its centre of mass. The pair's relative
- * orbit has semi-major axis `a` (scene units), eccentricity `e` and its closest approach toward
- * `periapsis` (radians about +y); the body sits at `share` of the relative position, negative for
- * the primary, which is on the far side of the centre of mass from its companion.
- */
-export interface KeplerPath {
-  a: number;
-  e: number;
-  share: number;
-  periapsis: number;
-}
-
-interface Orbit {
-  carrier: THREE.Group;
-  radius: number;
-  /** Set for a binary's stars and centre of mass: an ellipse instead of the circle of `radius`. */
-  kepler?: KeplerPath;
-  startAngle: number;
-  secondsPerOrbit: number;
-  followers: OrbitFollower[];
-  /** A moon's planet (MO6): the moon's carrier sits in the planet's, so it goes round both. */
-  parent: Orbit | null;
-}
-
-/** A body's starting angle round its orbit, radians, from its VISUAL sub-stream: a planet's round its star, a moon's round its planet. */
-export function orbitStartAngle(body: BodyRef, galaxySeed: number): number {
-  return createRNG(mixSeed(galaxySeed, ...bodyKey(body), SALT.VISUAL, ORBIT_PHASE_STREAM))() * 2 * Math.PI;
-}
-
-// The VISUAL sub-stream where a binary's companion starts on its orbit (BS4)
-const COMPANION_PHASE_STREAM = 4;
-
-/** Where a star's companion starts round the pair's orbit, radians, from the star's VISUAL sub-stream (BS4). */
-export function companionStartAngle(starId: number, galaxySeed: number): number {
-  return createRNG(mixSeed(galaxySeed, starId, SALT.VISUAL, COMPANION_PHASE_STREAM))() * 2 * Math.PI;
-}
-
-/** A close pair goes round in no less than this many seconds on screen, so it never strobes (BS4). */
-export const FASTEST_PAIR_ORBIT_SECONDS = 4;
-
-/** The innermost moon of a planet goes round once in this many seconds on screen (MO6). */
-export const INNER_MOON_ORBIT_SECONDS = 8;
 
 /** Seconds on screen for one orbit of this radius, when the innermost of radius `innermost` takes INNER_ORBIT_SECONDS. */
 export function secondsPerOrbit(radius: number, innermost: number): number {
@@ -401,78 +188,13 @@ export function secondsPerOrbit(radius: number, innermost: number): number {
 }
 
 /**
- * The planets of one system going round their star, and their moons round
- * them (MO6), by body key. Each body's meshes sit in a carrier group, moved
- * (never turned) round the orbit; the followers keep the rest in step.
+ * A body on a Kepler ellipse. The orbit has semi-major axis `a` (scene units), eccentricity `e`
+ * and its closest approach toward `periapsis` (radians about +y); the body sits at `share` of the
+ * relative position (1 for a planet round its star).
  */
-export class SystemOrbits {
-  private readonly orbits = new Map<string, Orbit>();
-  private elapsedSeconds = 0;
-  private readonly place: OrbitPlace = { angle: 0, centre: new THREE.Vector3(), toStar: new THREE.Vector3() };
-
-  /** Adds a planet's carrier, centred on the star (the carrier's parent's origin). */
-  add(planet: Planet, carrier: THREE.Group, radius: number, innermost: number, galaxySeed: number): void {
-    this.orbits.set(planet.key, {
-      carrier, radius, startAngle: orbitStartAngle(planet, galaxySeed),
-      secondsPerOrbit: secondsPerOrbit(radius, innermost), followers: [], parent: null,
-    });
-  }
-
-  /**
-   * Adds one star of a close binary (BS4), going round the pair's centre at the group's origin.
-   * Add the pair before the planets, so a planet riding on its star is placed after the star moves.
-   */
-  addStar(key: string, carrier: THREE.Group, path: KeplerPath, seconds: number): void {
-    this.orbits.set(key, { carrier, radius: 0, kepler: path, startAngle: 0, secondsPerOrbit: seconds, followers: [], parent: null });
-  }
-
-  /** Adds a moon's carrier inside its planet's (added first), going round once in `seconds` on screen. */
-  addMoon(moon: BodyRef & { key: string }, planetKey: string, carrier: THREE.Group, radius: number, seconds: number, galaxySeed: number): void {
-    const parent = this.orbits.get(planetKey);
-    if (!parent) return;
-    parent.carrier.add(carrier);
-    this.orbits.set(moon.key, {
-      carrier, radius, startAngle: orbitStartAngle(moon, galaxySeed), secondsPerOrbit: seconds, followers: [], parent,
-    });
-  }
-
-  /** Calls `follower` whenever the body moves, and at once. */
-  follow(key: string, follower: OrbitFollower): void {
-    const orbit = this.orbits.get(key);
-    if (!orbit) return;
-    orbit.followers.push(follower);
-    this.placeOne(orbit);
-  }
-
-  /** The body's carrier group, whose origin is the body's centre. */
-  carrierOf(key: string): THREE.Group | undefined {
-    return this.orbits.get(key)?.carrier;
-  }
-
-  /** Moves the clock on by `seconds` and every planet with it. */
-  advance(seconds: number): void {
-    this.elapsedSeconds += seconds;
-    for (const orbit of this.orbits.values()) this.placeOne(orbit);
-  }
-
-  private placeOne(orbit: Orbit): void {
-    const angle = orbit.startAngle + (this.elapsedSeconds / orbit.secondsPerOrbit) * 2 * Math.PI;
-    if (orbit.kepler) {
-      // The angle is the mean anomaly: equal times sweep equal areas, fastest at closest approach
-      const [x, z] = keplerPlace(orbit.kepler, angle);
-      orbit.carrier.position.set(x, 0, z);
-      orbit.carrier.updateWorldMatrix(true, false);
-      return;
-    }
-    orbit.carrier.position.set(orbit.radius * Math.cos(angle), 0, -orbit.radius * Math.sin(angle));
-    orbit.carrier.updateWorldMatrix(true, false);
-    const { place } = this;
-    place.angle = angle;
-    orbit.carrier.getWorldPosition(place.centre);
-    // From the body to the star at the system's origin: a moon's place is its planet's plus its own
-    place.toStar.copy(orbit.carrier.position);
-    if (orbit.parent) place.toStar.add(orbit.parent.carrier.position);
-    place.toStar.negate().normalize();
-    for (const follower of orbit.followers) follower(place);
-  }
+export interface KeplerPath {
+  a: number;
+  e: number;
+  share: number;
+  periapsis: number;
 }

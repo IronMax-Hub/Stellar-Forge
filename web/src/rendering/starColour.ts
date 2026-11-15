@@ -13,7 +13,7 @@
 // and arrives in the exported JSON; nothing here knows a temperature.
 
 import * as THREE from "three";
-import type { Rgb } from "./aionStubs";
+import type { Rgb } from "../data/types";
 
 /** How far each star's colour is pushed from white for legibility. */
 export const STAR_SATURATION_BOOST = 1.5;

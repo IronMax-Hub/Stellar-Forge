@@ -680,7 +680,7 @@ The plan models single stars. The binary stability limits ported from Aion Forge
 4. Web view **System Timeline**:
     - a 2D orbit map with a time scrubber: the star swells, the habitable zone moves out, orbits widen, and engulfed planets vanish;
     - an event log;
-    - the optional 3D system view. Its copied code solves Kepler's equation (`systemView.ts: eccentricAnomaly`) and maps temperature to ring ice (`rings.ts: ringIciness`); before it is wired in, Python exports the orbital positions and the ring iciness, so `web/` keeps no physical formula (ground rule 2; scientific audit).
+    - the optional 3D system view. Its copied code solves Kepler's equation (`systemView.ts: eccentricAnomaly`) and maps temperature to ring ice (`rings.ts: ringIciness`); before it is wired in, Python exports the orbital positions and the ring iciness, so `web/` keeps no physical formula (ground rule 2; scientific audit). Phase 7 step 4 settles this: positions along each exported ellipse are animation only, and the planet globes with their ring iciness were removed in step 5.
 
 **Checks** (numbers in Validation): the Solar System reference case; when Earth leaves the habitable zone; supernova survival; the shoreline label on Solar System planets; the escape rate against Owen & Wu's formula.
 
@@ -831,6 +831,8 @@ The plan models single stars. The binary stability limits ported from Aion Forge
     - **Experiments:** the last hovered cell stays in the read-out, so its label can be clicked.
 
 - **Step 4, the 3D system view (15 November 2026):** a "3D view" box in System Timeline (off by default) swaps the 2D map for `web/src/SystemView3D.tsx`, built on the copied `rendering/system/systemView.ts`. It reads the same a, e, star radius, colour and habitable zone as the 2D map at the scrubber's age; orbits and the star are to scale, planets (and a star too small to see) are enlarged, and each planet's place along its ellipse is animation only. Pixel ratio 1, at most 1280 × 720, and nothing is drawn while the tab is hidden; under reduced motion it redraws only when something changes.
+
+- **Step 5, stubs (15 November 2026):** `rendering/aionStubs.ts` is gone. `starColour.ts` takes `Rgb` from `data/types.ts`; the black-hole view declares its own input types. No phase exports surface or atmosphere data, so the copied planet globes (`rendering/planet/`) were deleted, with `systemLayout.ts` and `util/rng.ts`, which only they and the cut parts of `systemView.ts` used; `systemView.ts` keeps only what the 3D view draws. The removals are recorded in `PROVENANCE.md`.
 
 **Deferred:** a discovery catalogue of notable results (a pair-instability outcome, a surviving planetary system) waits until the core pipeline works end to end.
 

@@ -11,9 +11,9 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { Rgb } from "./data/types";
 import { starDisplayThreeColour, starLightThreeColour } from "./rendering/starColour";
 import {
-  disposeSystemGroup, hostStarObject, keplerLine, keplerPlace, secondsPerOrbit, systemLights, type KeplerPath,
+  disposeSystemGroup, hostStarObject, keplerLine, keplerPlace, secondsPerOrbit, systemLights, SYSTEM_UNITS_PER_AU,
+  type KeplerPath,
 } from "./rendering/system/systemView";
-import { SYSTEM_UNITS_PER_AU } from "./rendering/system/systemLayout";
 
 /** One age of one system, as the 2D map draws it; a null planet is not there (not yet formed, or gone). */
 export interface SystemFrame {
