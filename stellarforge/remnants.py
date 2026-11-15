@@ -66,7 +66,8 @@ class Remnant:
     provenance: str
     prescription: str
     how: str                  # how it formed, in a sentence
-    alternative: dict         # {prescription, type, mass_msun}: the other prescription's answer
+    # The other prescription's answer: {prescription, type, mass_msun, radius_km, how, provenance}
+    alternative: dict
     final_mass_msun: float
     he_core_mass_msun: float
     co_core_mass_msun: float      # NaN where MIST gives no core mass
@@ -194,7 +195,13 @@ def remnant(track: Track, initial_mass_msun: float) -> Remnant:
 
     def same(kind: str) -> dict:
         """No alternative prescription applies: the alternative is the same outcome, without a mass."""
-        return {"prescription": "no alternative", "type": kind, "mass_msun": None}
+        return {"prescription": "no alternative", "type": kind, "mass_msun": None,
+                "radius_km": None, "how": "No alternative prescription applies to this star.",
+                "provenance": "derived"}
+
+    def compact_radius_km(kind: str, mass: float | None) -> float | None:
+        return (NS_RADIUS_KM if kind == "neutron star" else
+                SCHWARZSCHILD_KM_PER_MSUN * mass if kind == "black hole" else None)
 
     if track.ending == "white-dwarf cooling sequence":
         cooling, flags = cooling_track(m_final)
@@ -205,26 +212,32 @@ def remnant(track: Track, initial_mass_msun: float) -> Remnant:
             provenance=track.provenance, prescription="MIST final mass",
             how="The star sheds its envelope on the asymptotic giant branch; its exposed core "
                 "cools as a white dwarf.",
+            # No radius: the cooling sequence is computed for the MIST mass only
             alternative={"prescription": "Cummings et al. 2018, MIST-based relation",
-                         "type": "white dwarf", "mass_msun": ifmr} if ifmr else same("white dwarf"),
+                         "type": "white dwarf", "mass_msun": ifmr, "radius_km": None,
+                         "how": "The same white dwarf, with its mass from Cummings et al.'s "
+                                "initial-final mass relation instead of the MIST track's final "
+                                "mass.",
+                         "provenance": "predicted"} if ifmr else same("white dwarf"),
             cooling=cooling, **{**base, "flags": base["flags"] + flags})
 
     # Above 45 M☉ of helium core the pair-instability rules decide, without the CO core
     if track.ending == CARBON_END or (track.ending == NO_CO_CORE and m_he >= PPSN_HE_CORE_MSUN):
         kind, mass, how = core_collapse(m_final, m_he, m_co, delayed=True)
-        alt_kind, alt_mass, _ = core_collapse(m_final, m_he, m_co, delayed=False)
+        alt_kind, alt_mass, alt_how = core_collapse(m_final, m_he, m_co, delayed=False)
         flags = ["final_state_at_end_of_carbon_burning"]
         if ECSN_WINDOW_MSUN[0] <= initial_mass_msun <= ECSN_WINDOW_MSUN[1]:
             flags.append("ecsn_window: may form a neutron star by electron capture instead "
                          "(Poelarends et al. 2008)")
         return Remnant(
             type=kind, mass_msun=mass,
-            radius_km=(NS_RADIUS_KM if kind == "neutron star" else
-                       SCHWARZSCHILD_KM_PER_MSUN * mass if kind == "black hole" else None),
+            radius_km=compact_radius_km(kind, mass),
             provenance="predicted", prescription="Fryer et al. 2012 delayed; Belczynski et al. "
             "2016 pair instability", how=how,
-            alternative={"prescription": "Fryer et al. 2012 rapid", "type": alt_kind,
-                         "mass_msun": alt_mass},
+            alternative={"prescription": "Fryer et al. 2012 rapid; Belczynski et al. 2016 pair "
+                         "instability", "type": alt_kind, "mass_msun": alt_mass,
+                         "radius_km": compact_radius_km(alt_kind, alt_mass), "how": alt_how,
+                         "provenance": "predicted"},
             **{**base, "flags": base["flags"] + flags})
 
     if track.ending == MS_END:

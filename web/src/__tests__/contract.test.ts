@@ -3,7 +3,7 @@
 
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { parseDocument } from "../data/loader";
+import { parseDocument, parseIndex, staleDataMessage } from "../data/loader";
 import { SCHEMA_VERSION } from "../data/types";
 
 type Raw = Record<string, Record<string, unknown>>;
@@ -120,5 +120,28 @@ describe("data contract", () => {
     const uneven = fixture();
     (uneven.timeline.star as { phase: string[] }).phase.pop();
     expect(() => parseDocument(uneven)).toThrow(/timeline\.star\.phase/);
+  });
+});
+
+// Its Python twin is tests/test_data_status.py.
+describe("data index", () => {
+  const raw = () => JSON.parse(readFileSync(new URL("../../../contract/index.fixture.json", import.meta.url), "utf8"));
+
+  it("parses the shared index fixture, keeping every field", () => {
+    expect(parseIndex(raw())).toEqual(raw());
+    expect(raw().schema_version).toBe(SCHEMA_VERSION);
+  });
+
+  it("names files on another schema and the targets that rebuild them", () => {
+    const message = staleDataMessage(parseIndex(raw()))!;
+    expect(message).toMatch(/^2 of 3 /);
+    expect(message).toContain("planets/systems_000.json");
+    expect(message).toContain("make experiments, make planets");
+  });
+
+  it("says nothing when every file is current", () => {
+    const index = parseIndex(raw());
+    index.files = index.files.slice(0, 1);
+    expect(staleDataMessage(index)).toBeNull();
   });
 });

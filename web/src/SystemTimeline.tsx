@@ -4,10 +4,14 @@
 // track. Nothing here computes a physical value: orbits, the star, the habitable zone, events and
 // fates all come from the files.
 
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { parseDocument } from "./data/loader";
-import type { Meta, PlanetClass, Population, Timeline, TimelinePlanet } from "./data/types";
+import type { Meta, PlanetClass, Population, PopulationCell, Timeline, TimelinePlanet } from "./data/types";
 import { CalibrationBadge } from "./Planets";
+import ProvTag from "./ProvTag";
+import StarNote from "./StarNote";
+import { MetaContext } from "./data/metaContext";
+import { fmtFeh, indexAtAge, nearest, skipWhileHidden, type StarProps } from "./currentStar";
 
 const DATA = `${import.meta.env.BASE_URL}data/`;
 const SOLAR = "planets/solar_system.json";
@@ -17,8 +21,8 @@ const CLASS_COLOURS: Record<PlanetClass, string> = {
   "gas giant": "#e0a458", "ice giant": "#6fa8dc", "sub-Neptune": "#8fd3c6", "super-Earth": "#c58bd9", terrestrial: "#c9785a",
 };
 
+/** A system of the current star's cell, picked in the Planets view. */
 export interface TimelineTarget {
-  file: string;
   index: number;
 }
 
@@ -48,81 +52,100 @@ function useTimeline(file: string) {
   return state?.file === file ? state.value : null;
 }
 
-export default function SystemTimeline({ target }: { target: TimelineTarget | null }) {
-  const [source, setSource] = useState<TimelineTarget>(target ?? { file: SOLAR, index: 0 });
-  // A new target from the Planets view replaces the current choice (adjusted while rendering)
-  const [lastTarget, setLastTarget] = useState(target);
-  if (target !== lastTarget) {
-    setLastTarget(target);
-    if (target) setSource(target);
+function SystemTimeline({ star, setStar, show, target }: StarProps & { target: TimelineTarget | null }) {
+  const isSun = star.mass_msun === 1 && star.feh === 0;
+  // The Solar System is the reference case for the Sun; any other star shows its cell's sample systems
+  const [solar, setSolar] = useState(isSun && !target);
+  const [index, setIndex] = useState(target?.index ?? 0);
+  // A system followed from the Planets view, or another star, replaces the choice (adjusted while rendering)
+  const [seenStar, setSeenStar] = useState(star);
+  const [seenTarget, setSeenTarget] = useState(target);
+  if (star !== seenStar || target !== seenTarget) {
+    setSeenStar(star);
+    setSeenTarget(target);
+    if (target && target !== seenTarget) {
+      setSolar(false);
+      setIndex(target.index);
+    } else if (star.mass_msun !== seenStar.mass_msun || star.feh !== seenStar.feh) {
+      setSolar(isSun);
+      setIndex(0);
+    }
   }
-  const [population, setPopulation] = useState<Population | null>(null);
+  const [population, setPopulation] = useState<Population | string | null>(null);
   useEffect(() => {
+    const missing = "planets/population.json is missing; run `make planets`";
     fetch(DATA + "planets/population.json").then((r) => (r.ok ? r.json() : null))
-      .then((raw) => setPopulation(raw ? parseDocument(raw).population ?? null : null))
-      .catch(() => setPopulation(null));
+      .then((raw) => setPopulation((raw && parseDocument(raw).population) || missing))
+      .catch((e: Error) => setPopulation(e.message));
   }, []);
-  const doc = useTimeline(source.file);
+  const grid = typeof population === "object" ? population : null;
+  // The cell nearest the current star
+  const cell = grid && grid.cells[nearest(grid.feh_values, star.feh) * grid.star_masses_msun.length + nearest(grid.star_masses_msun, star.mass_msun, true)];
+  const file = solar ? SOLAR : cell?.timeline_file ?? null;
+  const doc = useTimeline(file ?? SOLAR);
+  const shown = file === null ? population : doc;
   return (
     <main className="experiments">
       <header>
         <h1>System Timeline</h1>
         <p className="note">What happens to each planet as its star ages, swells, sheds mass and dies. Every orbit, edge and event is a model prediction from the files; the drawing only scales them.</p>
+        <p className="note"><button className="linklike" onClick={() => show("star")}>This star's life in Star Builder</button></p>
       </header>
-      <Picker source={source} onPick={setSource} population={population} timeline={typeof doc === "object" && doc ? doc.timeline : null} />
-      {doc === null && <p>Loading…</p>}
-      {typeof doc === "string" && <p role="alert">{doc}</p>}
-      {doc !== null && typeof doc === "object" && (
-        <TimelineView key={`${source.file}:${source.index}`} meta={doc.meta} timeline={doc.timeline} index={source.index} />
+      <Picker solar={solar} index={index} cell={solar ? null : cell} population={grid} timeline={file !== null && typeof doc === "object" && doc ? doc.timeline : null}
+        onSolar={(on) => { setSolar(on); setIndex(0); if (on) setStar({ ...star, mass_msun: 1, feh: 0 }); }}
+        onCell={(mass_msun, feh) => setStar({ ...star, mass_msun, feh })} onIndex={setIndex} />
+      {!solar && cell && <StarNote star={star} shown={{ mass_msun: cell.m_star_msun, feh: cell.feh }} />}
+      {shown === null && <p>Loading…</p>}
+      {typeof shown === "string" && <p role="alert">{shown}</p>}
+      {file !== null && doc !== null && typeof doc === "object" && (
+        <TimelineView key={`${file}:${index}`} meta={doc.meta} timeline={doc.timeline} index={index}
+          ageYr={star.age_yr} onAge={(age_yr) => setStar({ ...star, age_yr })} />
       )}
     </main>
   );
 }
 
-function Picker({ source, onPick, population, timeline }: {
-  source: TimelineTarget; onPick: (t: TimelineTarget) => void; population: Population | null; timeline: Timeline | null;
+export default memo(SystemTimeline, skipWhileHidden);
+
+function Picker({ solar, index, cell, population, timeline, onSolar, onCell, onIndex }: {
+  solar: boolean; index: number; cell: PopulationCell | null; population: Population | null; timeline: Timeline | null;
+  onSolar: (on: boolean) => void; onCell: (mass_msun: number, feh: number) => void; onIndex: (index: number) => void;
 }) {
-  const cells = population?.cells ?? [];
-  const cell = cells.find((c) => c.timeline_file === source.file);
   const masses = population?.star_masses_msun ?? [], fehs = population?.feh_values ?? [];
-  const mi = cell ? masses.indexOf(cell.m_star_msun) : masses.indexOf(1);
-  const fi = cell ? fehs.indexOf(cell.feh) : fehs.indexOf(0);
-  const pickCell = (m: number, f: number) => {
-    const c = population && population.cells[f * masses.length + m];
-    if (c) onPick({ file: c.timeline_file, index: 0 });
-  };
+  const mi = cell ? masses.indexOf(cell.m_star_msun) : -1;
+  const fi = cell ? fehs.indexOf(cell.feh) : -1;
   return (
     <section className="controls">
       <label>
         Systems
-        <select value={source.file === SOLAR ? "solar" : "sample"} onChange={(e) => (e.target.value === "solar" ? onPick({ file: SOLAR, index: 0 }) : pickCell(Math.max(mi, 0), Math.max(fi, 0)))}>
+        <select value={solar ? "solar" : "sample"} onChange={(e) => onSolar(e.target.value === "solar")}>
           <option value="solar">Solar System (reference case)</option>
           <option value="sample" disabled={!population}>Phase 5 sample systems</option>
         </select>
       </label>
-      {source.file !== SOLAR && population && mi >= 0 && fi >= 0 && (
+      {cell && (
         <>
           <label>
             Star mass
             <output>{masses[mi]} M☉</output>
-            <input type="range" min={0} max={masses.length - 1} value={mi} onChange={(e) => pickCell(+e.target.value, fi)} />
+            <input type="range" min={0} max={masses.length - 1} value={mi} onChange={(e) => onCell(masses[+e.target.value], fehs[fi])} />
           </label>
           <label>
             [Fe/H]
-            <output>{fehs[fi] > 0 ? "+" : ""}{fehs[fi]}</output>
-            <input type="range" min={0} max={fehs.length - 1} value={fi} onChange={(e) => pickCell(mi, +e.target.value)} />
+            <output>{fmtFeh(fehs[fi])}</output>
+            <input type="range" min={0} max={fehs.length - 1} value={fi} onChange={(e) => onCell(masses[mi], fehs[+e.target.value])} />
           </label>
           {timeline && (
             <label>
               System
-              <select value={source.index} onChange={(e) => onPick({ file: source.file, index: +e.target.value })}>
+              <select value={index} onChange={(e) => onIndex(+e.target.value)}>
                 {timeline.systems.filter((s) => s.planets.length > 0).map((s) => (
                   <option key={s.index} value={s.index}>{`${s.index}: ${s.planets.length} planet${s.planets.length > 1 ? "s" : ""}`}</option>
                 ))}
               </select>
             </label>
           )}
-          {cell && <CalibrationBadge label={cell.calibration} />}
+          <CalibrationBadge label={cell.calibration} />
         </>
       )}
     </section>
@@ -160,14 +183,29 @@ const fmtAge = (yr: number) => (yr >= 1e9 ? `${(yr / 1e9).toFixed(3)} Gyr` : yr 
 const css = ([r, g, b]: number[]) => `rgb(${Math.round(255 * r)}, ${Math.round(255 * g)}, ${Math.round(255 * b)})`;
 const label = (p: TimelinePlanet, k: number) => p.name ?? `planet ${k + 1} (${p.class_at_formation})`;
 
-function TimelineView({ meta, timeline, index }: { meta: Meta; timeline: Timeline; index: number }) {
+function TimelineView({ meta, timeline, index, ageYr, onAge }: {
+  meta: Meta; timeline: Timeline; index: number; ageYr: number; onAge: (age_yr: number) => void;
+}) {
   const star = timeline.star;
   const n = star.age_yr.length;
   const system = timeline.systems.find((s) => s.index === index) ?? timeline.systems[0];
   const planets = system.planets;
   const formedAt = planets.map((p) => p.events.find((e) => e.kind === "formed")?.age_yr ?? star.age_yr[0]);
-  const [s, setS] = useState(() => Math.max(0, star.age_yr.findIndex((a) => a >= 4.57e9)));
+  // Opens at the current age; an age set in another view moves the scrubber to it
+  const [s, setS] = useState(() => indexAtAge(star.age_yr, ageYr));
   const [playing, setPlaying] = useState(false);
+  const [seenAge, setSeenAge] = useState(ageYr);
+  if (ageYr !== seenAge) {
+    setSeenAge(ageYr);
+    setPlaying(false);
+    setS(indexAtAge(star.age_yr, ageYr));
+  }
+  /** Sets the current age from this view; marked as seen, so the scrubber is not snapped to a sample. */
+  const publish = (age_yr: number) => {
+    setSeenAge(age_yr);
+    onAge(age_yr);
+  };
+  const endAge = star.age_yr[n - 1];
   useEffect(() => {
     if (!playing) return;
     let frame = 0, last = performance.now();
@@ -175,21 +213,25 @@ function TimelineView({ meta, timeline, index }: { meta: Meta; timeline: Timelin
       const step = ((now - last) / 1000) * 6;   // six exported samples per second
       last = now;
       setS((v) => {
-        if (v + step >= n - 1) { setPlaying(false); return n - 1; }
-        return v + step;
+        if (v + step < n - 1) return v + step;
+        // The end of the track: stop, and make its age the current age (after this render)
+        setPlaying(false);
+        queueMicrotask(() => onAge(endAge));
+        return n - 1;
       });
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [playing, n]);
+  }, [playing, n, endAge, onAge]);
   const age = along(star.age_yr, s);
   const i = Math.round(s);
   const events = useMemo(() => planets.flatMap((p, k) => p.events.map((e) => ({ ...e, who: label(p, k), k })))
     .sort((a, b) => a.age_yr - b.age_yr), [planets]);
   const jump = (yr: number) => {
-    const j = star.age_yr.findIndex((a) => a >= yr);
-    setS(j < 0 ? n - 1 : j);
+    const j = indexAtAge(star.age_yr, yr);
+    setS(j);
+    publish(star.age_yr[j]);
   };
   const sizeOf = (p: TimelinePlanet) => 2.5 + 1.4 * Math.log10(1 + p.mass_mearth);
 
@@ -200,21 +242,21 @@ function TimelineView({ meta, timeline, index }: { meta: Meta; timeline: Timelin
   const hzIn = alongNullable(star.hz_inner_au, s), hzOut = alongNullable(star.hz_outer_au, s);
   const radius = along(star.radius_au, s);
   return (
-    <>
+    <MetaContext value={meta}>
       <section>
         <h2>{timeline.name}{timeline.systems_file ? `, system ${system.index}` : ""}</h2>
         <div className="controls timeline-controls">
-          <button onClick={() => setPlaying((p) => !p)}>{playing ? "Pause" : "Play"}</button>
+          <button onClick={() => { if (playing) publish(age); setPlaying(!playing); }}>{playing ? "Pause" : "Play"}</button>
           <label className="wide">
             Age
             <output>{fmtAge(age)}</output>
-            <input type="range" min={0} max={n - 1} step={0.01} value={s} onChange={(e) => { setPlaying(false); setS(+e.target.value); }} />
+            <input type="range" min={0} max={n - 1} step={0.01} value={s} onChange={(e) => { setPlaying(false); setS(+e.target.value); publish(along(star.age_yr, +e.target.value)); }} />
           </label>
         </div>
         <dl className="cell-stats">
           <dt>Phase</dt><dd>{star.phase[i]}</dd>
-          <dt>Star</dt><dd>{star.mass_msun[i]} M☉, {star.l_lsun[i]} L☉, {star.teff_k[i]} K, radius {star.radius_au[i]} AU<span className={`prov prov-${star.provenance}`}>{star.provenance}</span></dd>
-          <dt>Habitable zone</dt><dd>{star.hz_inner_au[i] === null ? "not defined (Teff outside 2,600–7,200 K)" : `${star.hz_inner_au[i]}–${star.hz_outer_au[i]} AU`}<span className="prov prov-derived">derived</span></dd>
+          <dt>Star</dt><dd>{star.mass_msun[i]} M☉, {star.l_lsun[i]} L☉, {star.teff_k[i]} K, radius {star.radius_au[i]} AU<ProvTag p={star.provenance} what="The star at this age" how={star.method} flags={star.flags} /></dd>
+          <dt>Habitable zone</dt><dd>{star.hz_inner_au[i] === null ? "not defined (Teff outside 2,600–7,200 K)" : `${star.hz_inner_au[i]}–${star.hz_outer_au[i]} AU`}<ProvTag p="derived" what="Habitable zone" how={meta.models["habitable zone"]} /></dd>
           <dt>Track</dt><dd>{star.method}; ends at {star.ending}</dd>
           {star.flags.length > 0 && <><dt>Track warnings</dt><dd className="flags" title="These apply somewhere along the whole track, not necessarily at this age">{star.flags.join("; ")}</dd></>}
         </dl>
@@ -264,7 +306,7 @@ function TimelineView({ meta, timeline, index }: { meta: Meta; timeline: Timelin
               <tr key={k}>
                 <td><i className="swatch" style={{ background: CLASS_COLOURS[p.class_at_formation] }} />{label(p, k)}</td>
                 <td>{p.mass_mearth}{p.final_mass_mearth !== p.mass_mearth && ` → ${p.final_mass_mearth}`}</td>
-                <td>{p.fate}<span className="prov">{p.provenance}</span></td>
+                <td>{p.fate}<ProvTag p={p.provenance} what={`${label(p, k)}: ${p.fate}`} how={`Closest approach ${p.closest_approach_rstar} R★, decided on the ${p.deciding_phase}`} flags={p.flags} /></td>
                 <td>{p.e}{p.final_e !== p.e && ` → ${p.final_e}`}</td>
                 <td>{p.closest_approach_rstar} R★ (pericentre)</td>
                 <td>{p.deciding_phase}</td>
@@ -278,6 +320,6 @@ function TimelineView({ meta, timeline, index }: { meta: Meta; timeline: Timelin
         </table>
         <p className="source">{meta.models.shoreline}. {meta.models.escape}. The shoreline label and the escape calculation are kept apart; a planet carries a warning where they disagree.</p>
       </section>
-    </>
+    </MetaContext>
   );
 }

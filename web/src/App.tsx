@@ -4,21 +4,24 @@
 // remnant. Every number shown comes from web/public/data, written by `python -m stellarforge.export
 // web`; this file only selects, scales and draws.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { parseDocument } from "./data/loader";
+import { parseDocument, parseIndex, staleDataMessage } from "./data/loader";
 import type { Grid, Meta, Provenance, Remnant, Track } from "./data/types";
 import Experiments from "./Experiments";
 import InsideTheStar from "./InsideTheStar";
 import Planets from "./Planets";
 import SystemTimeline, { type TimelineTarget } from "./SystemTimeline";
+import ProvTag from "./ProvTag";
+import StarNote from "./StarNote";
+import { MetaContext } from "./data/metaContext";
+import { SUN_TODAY, indexAtAge, nearest, skipWhileHidden, type CurrentStar, type StarProps, type View } from "./currentStar";
 import { BLACK_HOLE_DISTANCE, BlackHoleView, START_ELEVATION_DEG } from "./rendering/blackHole/BlackHoleView";
 import { starDisplayCss } from "./rendering/starColour";
 
 const DATA = `${import.meta.env.BASE_URL}data/`;
 const FIRST_FILE = "tracks_feh_+0.0.json";
-const SUN_AGE_YR = 4.57e9; // where the first star opens: the Sun today
 
 interface GridFile {
   meta: Meta;
@@ -54,8 +57,6 @@ function prefetchAround({ grid }: GridFile) {
 
 const fmt = (x: number, digits = 4) => x.toPrecision(digits);
 
-type View = "star" | "experiments" | "inside" | "planets" | "timeline";
-
 export default function App() {
   const [view, setView] = useState<View>("star");
   // Other views load on first opening; after that every view stays mounted and keeps its state
@@ -64,13 +65,25 @@ export default function App() {
     setView(v);
     setOpened((o) => new Set(o).add(v));
   };
+  // The current star and time, shared by the star-aware views (currentStar.ts); opens on the Sun today
+  const [star, setStar] = useState<CurrentStar>(SUN_TODAY);
+  const shared = { star, setStar, show };
   const [target, setTarget] = useState<TimelineTarget | null>(null);
   const openTimeline = (t: TimelineTarget) => {
     setTarget(t);
     show("timeline");
   };
+  // Stale data is named here, before a view opens the file and fails on it
+  const [stale, setStale] = useState<string | null>(null);
+  useEffect(() => {
+    fetch(`${DATA}index.json`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((raw) => setStale(staleDataMessage(parseIndex(raw))))
+      .catch((e: Error) => setStale(`No data index (${e.message}). Run make data-status, or make all-data if nothing is exported yet.`));
+  }, []);
   return (
     <>
+      {stale && <p className="stale-data" role="alert">{stale}</p>}
       <nav className="tabs" aria-label="Views">
         <button aria-pressed={view === "star"} onClick={() => show("star")}>Star Builder</button>
         <button aria-pressed={view === "experiments"} onClick={() => show("experiments")}>Experiments</button>
@@ -78,62 +91,80 @@ export default function App() {
         <button aria-pressed={view === "planets"} onClick={() => show("planets")}>Planets</button>
         <button aria-pressed={view === "timeline"} onClick={() => show("timeline")}>System Timeline</button>
       </nav>
-      <div hidden={view !== "star"}><StarBuilder /></div>
+      <div hidden={view !== "star"}><StarBuilder {...shared} active={view === "star"} /></div>
       {opened.has("experiments") && <div hidden={view !== "experiments"}><Experiments /></div>}
-      {opened.has("inside") && <div hidden={view !== "inside"}><InsideTheStar /></div>}
-      {opened.has("planets") && <div hidden={view !== "planets"}><Planets onOpenTimeline={openTimeline} /></div>}
-      {opened.has("timeline") && <div hidden={view !== "timeline"}><SystemTimeline target={target} /></div>}
+      {opened.has("inside") && <div hidden={view !== "inside"}><InsideTheStar {...shared} active={view === "inside"} /></div>}
+      {opened.has("planets") && <div hidden={view !== "planets"}><Planets {...shared} active={view === "planets"} onOpenTimeline={openTimeline} /></div>}
+      {opened.has("timeline") && <div hidden={view !== "timeline"}><SystemTimeline {...shared} active={view === "timeline"} target={target} /></div>}
     </>
   );
 }
 
-function StarBuilder() {
+const StarBuilder = memo(function StarBuilder({ star, setStar, show }: StarProps) {
   const [doc, setDoc] = useState<GridFile | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [massIndex, setMassIndex] = useState<number | null>(null);
-  const [point, setPoint] = useState(0);
-  // The [Fe/H] file asked for last; a slower, older request must not replace it when it lands
-  const wanted = useRef(FIRST_FILE);
+  // The age slider's own position, exact even where two exported points share an age. Null follows
+  // the current age: after another star is picked, here or in another view, the age is kept.
+  const [point, setPoint] = useState<number | null>(null);
+  const [seen, setSeen] = useState(star);
+  if (star !== seen) {
+    setSeen(star);
+    setPoint(null);
+  }
 
+  // The first file gives the grid's [Fe/H] values; after that, the file nearest the current [Fe/H].
+  // A slower, older request is dropped when it lands.
+  const file = doc ? doc.grid.files[nearest(doc.grid.feh_values, star.feh)] : FIRST_FILE;
   useEffect(() => {
-    load(FIRST_FILE).then((d) => {
-      const sun = d.grid.mass_values_msun.indexOf(1);
+    let live = true;
+    load(file).then((d) => {
+      if (!live) return;
       setDoc(d);
       prefetchAround(d);
-      setMassIndex(sun);
-      setPoint(Math.max(0, d.grid.tracks[sun].age_yr.findIndex((a) => a >= SUN_AGE_YR)));
-    }, (e: Error) => setError(e.message));
-  }, []);
+    }, (e: Error) => live && setError(e.message));
+    return () => { live = false; };
+  }, [file]);
 
   if (error) return <main><p role="alert">{error}</p></main>;
-  if (!doc || massIndex === null) return <main><p>Loading tracks…</p></main>;
+  if (!doc) return <main><p>Loading tracks…</p></main>;
 
   const { grid } = doc;
+  const massIndex = nearest(grid.mass_values_msun, star.mass_msun, true);
   const track = grid.tracks[massIndex];
-  const i = Math.min(point, track.age_yr.length - 1);
-  const fehIndex = grid.feh_values.indexOf(grid.feh);
+  const i = Math.min(point ?? indexAtAge(track.age_yr, star.age_yr), track.age_yr.length - 1);
+  const fehIndex = nearest(grid.feh_values, star.feh);
+  const loaded = grid.files[fehIndex] === file && grid.feh === grid.feh_values[fehIndex];
 
-  const pickFeh = (k: number) => {
-    const file = (wanted.current = grid.files[k]);
-    load(file).then((d) => {
-      if (wanted.current !== file) return;
-      setDoc(d);
-      prefetchAround(d);
-    }, (e: Error) => setError(e.message));
+  const pickMass = (k: number) => setStar({ ...star, mass_msun: grid.mass_values_msun[k] });
+  const pickFeh = (k: number) => setStar({ ...star, feh: grid.feh_values[k] });
+  const pickPoint = (k: number) => {
+    // Marked as seen, so this view's own age does not come back as another view's choice
+    const next = { ...star, age_yr: track.age_yr[k] };
+    setSeen(next);
+    setPoint(k);
+    setStar(next);
   };
 
   return (
+    <MetaContext value={doc.meta}>
     <main className="builder">
       <header>
         <h1>Star Builder</h1>
         <p className="source">{doc.meta.dataset}</p>
+        <p className="note">
+          This star in other views:{" "}
+          <button className="linklike" onClick={() => show("inside")}>inside the star</button>{" · "}
+          <button className="linklike" onClick={() => show("planets")}>its planets</button>{" · "}
+          <button className="linklike" onClick={() => show("timeline")}>their fate as it ages</button>
+        </p>
+        {loaded && <StarNote star={star} shown={{ mass_msun: track.mass_msun, feh: grid.feh }} />}
       </header>
 
       <section className="controls" aria-label="Star">
         <label>
           Initial mass <output>{fmt(track.mass_msun)} M☉</output>
           <input type="range" min={0} max={grid.mass_values_msun.length - 1} value={massIndex}
-            onChange={(e) => setMassIndex(Number(e.target.value))} />
+            onChange={(e) => pickMass(Number(e.target.value))} />
         </label>
         <label>
           [Fe/H] <output>{grid.feh.toFixed(1)}</output>
@@ -143,7 +174,7 @@ function StarBuilder() {
         <label>
           Age <output>{(track.age_yr[i] / 1e9).toPrecision(6)} Gyr</output>
           <input type="range" min={0} max={track.age_yr.length - 1} value={i}
-            onChange={(e) => setPoint(Number(e.target.value))} />
+            onChange={(e) => pickPoint(Number(e.target.value))} />
         </label>
       </section>
 
@@ -152,12 +183,13 @@ function StarBuilder() {
         <StarDisc track={track} point={i} />
       </div>
 
-      <PhaseTimeline track={track} point={i} onPick={setPoint} />
+      <PhaseTimeline track={track} point={i} onPick={pickPoint} />
       <Numbers track={track} point={i} />
       <RemnantCard remnant={track.remnant} input={track.provenance} />
     </main>
+    </MetaContext>
   );
-}
+}, skipWhileHidden);
 
 function HrDiagram({ track, point }: { track: Track; point: number }) {
   const W = 460, H = 340, PAD = 44;
@@ -247,10 +279,6 @@ function PhaseTimeline({ track, point, onPick }: { track: Track; point: number; 
   );
 }
 
-function Label({ p }: { p: Provenance }) {
-  return <span className={`prov prov-${p}`}>{p}</span>;
-}
-
 function Numbers({ track, point }: { track: Track; point: number }) {
   const fp = track.field_provenance;
   const names = track.phase_names;
@@ -267,7 +295,7 @@ function Numbers({ track, point }: { track: Track; point: number }) {
     <section aria-label="Values" className="numbers">
       <dl>
         {rows.map(([name, value, p]) => (
-          <div key={name}><dt>{name}</dt><dd>{value} <Label p={p} /></dd></div>
+          <div key={name}><dt>{name}</dt><dd>{value} <ProvTag p={p} what={`${name}: ${value}`} how={track.method} flags={track.flags} /></dd></div>
         ))}
         <div><dt>Track</dt><dd>{track.method}</dd></div>
         <div><dt>Track ends at</dt><dd>{track.ending}</dd></div>
@@ -282,22 +310,34 @@ const REMNANT_TITLES: Record<Remnant["type"], string> = {
   none: "No remnant", "not yet": "No remnant yet", "not predicted": "Not predicted",
 };
 
+/** The remnant under the adopted prescription or, with the toggle, the other one the file carries. */
 function RemnantCard({ remnant, input }: { remnant: Remnant; input: Provenance }) {
-  const r = remnant;
+  // Kept from star to star, so a sweep in mass can be watched under either prescription
+  const [other, setOther] = useState(false);
+  const hasOther = remnant.alternative.prescription !== "no alternative";
+  const r = other && hasOther ? { ...remnant, ...remnant.alternative } : remnant;
+  const notShown = other && hasOther ? remnant : remnant.alternative;
   const mass = (m: number | null) => (m === null ? "—" : `${m} M☉`);
   return (
     <section aria-label="Remnant" className="remnant">
-      <h2>{REMNANT_TITLES[r.type]}{r.mass_msun !== null && <> · {r.mass_msun} M☉ <Label p={r.provenance} /></>}</h2>
+      {hasOther && (
+        <div className="subtabs prescriptions" role="group" aria-label="Remnant prescription">
+          Prescription:
+          <button aria-pressed={!other} onClick={() => setOther(false)}>{remnant.prescription} (adopted)</button>
+          <button aria-pressed={other} onClick={() => setOther(true)}>{remnant.alternative.prescription}</button>
+        </div>
+      )}
+      <h2>{REMNANT_TITLES[r.type]}{r.mass_msun !== null && <> · {r.mass_msun} M☉ <ProvTag p={r.provenance} what={`Remnant mass: ${r.mass_msun} M☉`} how={r.prescription} flags={r.flags} /></>}</h2>
       <p>{r.how}</p>
       <dl>
         {r.radius_km !== null && (
           <div><dt>{r.type === "black hole" ? "Horizon radius" : r.type === "white dwarf" ? "Radius (cooled)" : "Radius"}</dt><dd>{r.radius_km} km</dd></div>
         )}
         <div><dt>Prescription</dt><dd>{r.prescription}</dd></div>
-        <div><dt>From a track that is</dt><dd><Label p={input} /></dd></div>
-        <div><dt>Alternative</dt><dd>{r.alternative.prescription}: {r.alternative.type}, {mass(r.alternative.mass_msun)}</dd></div>
+        <div><dt>From a track that is</dt><dd><ProvTag p={input} what="The star's track" flags={r.flags} /></dd></div>
+        <div><dt>{other && hasOther ? "Adopted prescription" : "Alternative"}</dt><dd>{notShown.prescription}: {notShown.type}, {mass(notShown.mass_msun)}</dd></div>
         <div><dt>Final mass · helium core · CO core</dt><dd>{mass(r.final_mass_msun)} · {mass(r.he_core_mass_msun)} · {mass(r.co_core_mass_msun)}</dd></div>
-        {r.cooling && <div><dt>Cooling (Bédard et al. 2020)</dt><dd>dashed on the HR diagram, to {(r.cooling.cooling_age_yr[r.cooling.cooling_age_yr.length - 1] / 1e9).toPrecision(3)} Gyr</dd></div>}
+        {r.cooling && <div><dt>Cooling (Bédard et al. 2020){other && hasOther && ", for the MIST final mass"}</dt><dd>dashed on the HR diagram, to {(r.cooling.cooling_age_yr[r.cooling.cooling_age_yr.length - 1] / 1e9).toPrecision(3)} Gyr</dd></div>}
         <div><dt>Warnings</dt><dd className="flags">{r.flags.join("; ")}</dd></div>
       </dl>
       <BlackHoleCanvas show={r.type === "black hole"} />

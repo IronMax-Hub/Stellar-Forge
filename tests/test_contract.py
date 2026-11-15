@@ -62,7 +62,8 @@ REMNANT = {
     "type": "neutron star", "mass_msun": 1.4, "radius_km": 12.0, "provenance": "predicted",
     "prescription": "test", "how": "test", "final_mass_msun": 11.0, "he_core_mass_msun": 3.0,
     "co_core_mass_msun": 2.0, "flags": ["test"], "cooling": None,
-    "alternative": {"prescription": "test", "type": "neutron star", "mass_msun": 1.3},
+    "alternative": {"prescription": "test", "type": "neutron star", "mass_msun": 1.3,
+                    "radius_km": 12.0, "how": "test", "provenance": "predicted"},
 }
 
 

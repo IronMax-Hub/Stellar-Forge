@@ -3,4 +3,4 @@
 __version__ = "0.1.0"
 
 # Both contract tests (tests/test_contract.py and web/src/__tests__/contract.test.ts) assert this.
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12

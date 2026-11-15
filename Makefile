@@ -4,7 +4,7 @@ BEDARD := $(HOME)/.cache/stellar-forge/bedard2020/AllSequences.tar.gz
 KAP := $(HOME)/.cache/stellar-forge/mesa_kap/kap_data.tar.xz
 UV := $(shell command -v uv || echo $(HOME)/.local/bin/uv)
 
-.PHONY: setup check dev bench data export experiments extension planets
+.PHONY: setup check dev bench data export experiments extension planets all-data data-status
 
 setup:
 	$(UV) sync
@@ -15,6 +15,7 @@ check:
 	.venv/bin/ruff check .
 	.venv/bin/pytest -q
 	cd web && npx tsc -b && npx eslint . && npx vitest run
+	@.venv/bin/python -m scripts.data_status | tail -1
 
 dev:
 	cd web && npm run dev
@@ -44,18 +45,35 @@ export:
 	.venv/bin/python -m stellarforge.export polytropes
 	OMP_NUM_THREADS=1 .venv/bin/python -m stellarforge.export zams
 	.venv/bin/python -m stellarforge.evolution check
+	@.venv/bin/python -m scripts.data_status | tail -1
 
 # The six Phase 3 experiments into results/ (timestamped), and copies for the Experiments view.
 experiments:
 	OMP_NUM_THREADS=1 .venv/bin/python -m stellarforge.experiments all --export
+	@.venv/bin/python -m scripts.data_status | tail -1
 
 # Phase 4's 1-20 M☉ extension: 90 zero-age models on 4 workers (~11 minutes), with a copy for the
 # Experiments view. Needs `make data`.
 extension:
 	OMP_NUM_THREADS=1 .venv/bin/python -m stellarforge.experiments zams-extension --export
+	@.venv/bin/python -m scripts.data_status | tail -1
 
 # Phase 5's planet populations: 8 star masses x 15 [Fe/H], 5,000 disks each, then the sensitivity
 # runs, on 4 workers (~10 minutes in all), and the Planets view's files in web/public/data/planets/,
 # then the System Timeline files (Phase 6, under a minute).
 planets:
 	OMP_NUM_THREADS=1 .venv/bin/python -m stellarforge.experiments planets --export
+	@.venv/bin/python -m scripts.data_status | tail -1
+
+# Every file the web app reads, in dependency order (about half an hour). Each target above ends by
+# rewriting web/public/data/index.json, which the app reads at start-up.
+all-data:
+	$(MAKE) export
+	$(MAKE) experiments
+	$(MAKE) extension
+	$(MAKE) planets
+
+# Lists data files made by an older schema or older physics code, with the target that rebuilds
+# each, and rewrites the index. A warning only: the data is gitignored.
+data-status:
+	@.venv/bin/python -m scripts.data_status

@@ -3,11 +3,15 @@
 // (`... export polytropes`); the n slider snaps to the exported indices. Nothing here computes a
 // physical value: the panels only regroup the exported arrays for drawing.
 
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { Curves } from "./Experiments";
 import { parseDocument } from "./data/loader";
 import type { Meta, Panel, PanelRow, Polytrope, Polytropes, Profile, StellarDocument } from "./data/types";
 import { PROFILE_SCALARS } from "./data/types";
+import ProvTag from "./ProvTag";
+import StarNote from "./StarNote";
+import { MetaContext } from "./data/metaContext";
+import { skipWhileHidden, type StarProps } from "./currentStar";
 
 const DATA = `${import.meta.env.BASE_URL}data/`;
 
@@ -36,21 +40,31 @@ function curves(title: string, y_label: string, x_values: number[], rows: PanelR
   return { title, kind: "curves", x_label: "r / R", y_label, value_label: "", log_x: false, log_values, x_values, columns: [], rows };
 }
 
-export default function InsideTheStar() {
+function InsideTheStar({ star, setStar, show }: StarProps) {
   const zams = useDocument("zams.json");
   const polytropes = useDocument("polytropes.json");
+  // One zero-age model is exported, so this view cannot follow the current star: it says which star it shows
+  const model = typeof zams === "object" && zams?.profiles ? zams.profiles.models[0] : null;
   return (
     <main className="experiments">
       <header>
         <h1>Inside the Star</h1>
       </header>
       <Status doc={zams} />
-      {typeof zams === "object" && zams?.profiles && <ZeroAgeStar meta={zams.meta} star={zams.profiles.models[0]} />}
+      {model && <StarNote star={star} shown={model} />}
+      {model && (
+        <p className="note">
+          <button className="linklike" onClick={() => { setStar({ ...star, mass_msun: model.mass_msun, feh: model.feh }); show("star"); }}>This star's life in Star Builder</button>
+        </p>
+      )}
+      {model && typeof zams === "object" && zams && <MetaContext value={zams.meta}><ZeroAgeStar meta={zams.meta} star={model} /></MetaContext>}
       <Status doc={polytropes} />
-      {typeof polytropes === "object" && polytropes?.polytropes && <PolytropeExplorer meta={polytropes.meta} polytropes={polytropes.polytropes} />}
+      {typeof polytropes === "object" && polytropes?.polytropes && <MetaContext value={polytropes.meta}><PolytropeExplorer meta={polytropes.meta} polytropes={polytropes.polytropes} /></MetaContext>}
     </main>
   );
 }
+
+export default memo(InsideTheStar, skipWhileHidden);
 
 function Status({ doc }: { doc: StellarDocument | string | null }) {
   if (doc === null) return <p>Loading…</p>;
@@ -115,8 +129,8 @@ function ZeroAgeStar({ meta, star }: { meta: Meta; star: Profile }) {
         <table className="result-table">
           <thead>
             <tr><th />
-              <th scope="col">Model <span className={`prov prov-${star.provenance}`}>{star.provenance}</span></th>
-              {star.mist && <th scope="col">MIST <span className={`prov prov-${star.mist.provenance}`}>{star.mist.provenance}</span></th>}
+              <th scope="col">Model <ProvTag p={star.provenance} what={`The ${star.mass_msun} M☉ zero-age model`} how={star.method} flags={star.flags} /></th>
+              {star.mist && <th scope="col">MIST <ProvTag p={star.mist.provenance} what="MIST's zero-age star (EEP 202)" /></th>}
               {star.mist && <th scope="col">Model − MIST (dex)</th>}
             </tr>
           </thead>
@@ -176,7 +190,7 @@ function PolytropeExplorer({ meta, polytropes }: { meta: Meta; polytropes: Polyt
       </section>
 
       <section className="panel" aria-label="Constants">
-        <h3>n = {p.n} <span className={`prov prov-${p.provenance}`}>{p.provenance}</span></h3>
+        <h3>n = {p.n} <ProvTag p={p.provenance} what={`Polytrope n = ${p.n}`} flags={p.flags} /></h3>
         {p.flags.map((f) => <p key={f} role="note">⚠ {f}</p>)}
         <table className="result-table">
           <tbody>

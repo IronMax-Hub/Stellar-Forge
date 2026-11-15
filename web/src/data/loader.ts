@@ -4,7 +4,7 @@
 
 import { PROVENANCES, SCHEMA_VERSION, TRACK_ARRAYS } from "./types";
 import { CALIBRATIONS, CORES, EVENT_KINDS, FATES, PANEL_KINDS, PLANET_CLASSES, POLYTROPE_ARRAYS, PROFILE_ARRAYS, PROFILE_SCALARS, REMNANT_TYPES } from "./types";
-import type { Calibration, Cooling, Experiment, PlanetClass, PlanetResult, PlanetSystem, Population, PopulationCell, Systems, Timeline, TimelinePlanet, TimelineStar, Grid, Meta, Panel, PanelKind, PanelRow, MistZams, Polytrope, Polytropes, Profile, Provenance, Reference, Remnant, RemnantType, Rgb, StellarDocument, Track, TrackArray } from "./types";
+import type { Calibration, Cooling, DataIndex, Experiment, PlanetClass, PlanetResult, PlanetSystem, Population, PopulationCell, Systems, Timeline, TimelinePlanet, TimelineStar, Grid, Meta, Panel, PanelKind, PanelRow, MistZams, Polytrope, Polytropes, Profile, Provenance, Reference, Remnant, RemnantType, Rgb, StellarDocument, Track, TrackArray } from "./types";
 
 type Json = Record<string, unknown>;
 
@@ -108,6 +108,9 @@ function parseRemnant(value: unknown, path: string): Remnant {
       prescription: string(alt.prescription, `${path}.alternative.prescription`),
       type: remnantType(alt.type, `${path}.alternative.type`),
       mass_msun: nullable(alt.mass_msun, `${path}.alternative.mass_msun`, number),
+      radius_km: nullable(alt.radius_km, `${path}.alternative.radius_km`, number),
+      how: string(alt.how, `${path}.alternative.how`),
+      provenance: provenance(alt.provenance, `${path}.alternative.provenance`),
     },
     final_mass_msun: nullable(r.final_mass_msun, `${path}.final_mass_msun`, number),
     he_core_mass_msun: nullable(r.he_core_mass_msun, `${path}.he_core_mass_msun`, number),
@@ -479,4 +482,30 @@ export function parseDocument(raw: unknown): StellarDocument {
     ...(doc.systems !== undefined && { systems: parseSystems(doc.systems) }),
     ...(doc.timeline !== undefined && { timeline: parseTimeline(doc.timeline) }),
   };
+}
+
+/** The data index. Its own schema_version is not checked here: an old index is itself reported. */
+export function parseIndex(raw: unknown): DataIndex {
+  const index = object(raw, "index");
+  return {
+    schema_version: integer(index.schema_version, "index.schema_version"),
+    files: list(index.files, "index.files", (v, p) => {
+      const f = object(v, p);
+      return {
+        file: string(f.file, `${p}.file`),
+        schema_version: nullable(f.schema_version, `${p}.schema_version`, integer),
+        target: string(f.target, `${p}.target`),
+      };
+    }),
+  };
+}
+
+/** What the start-up banner says about the index, or null when every file is on this app's schema. */
+export function staleDataMessage(index: DataIndex): string | null {
+  const stale = index.files.filter((f) => f.schema_version !== SCHEMA_VERSION);
+  if (stale.length === 0) return null;
+  const targets = [...new Set(stale.map((f) => `make ${f.target}`))].sort().join(", ");
+  const names = stale.slice(0, 3).map((f) => f.file).join(", ");
+  const more = stale.length > 3 ? ` and ${stale.length - 3} more` : "";
+  return `${stale.length} of ${index.files.length} data files are not on schema ${SCHEMA_VERSION}: ${names}${more}. Rebuild with ${targets}.`;
 }

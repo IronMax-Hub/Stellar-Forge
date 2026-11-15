@@ -122,15 +122,18 @@ def build_remnant(*, type: str, mass_msun, radius_km, provenance: str, prescript
     null when there is no remnant; the alternative is the other prescription's answer."""
     if type not in REMNANT_TYPES or alternative["type"] not in REMNANT_TYPES:
         raise ValueError(f"remnant type must be one of {REMNANT_TYPES}")
-    if provenance not in PROVENANCE:
-        raise ValueError(f"provenance must be one of {PROVENANCE}, got {provenance!r}")
+    if provenance not in PROVENANCE or alternative["provenance"] not in PROVENANCE:
+        raise ValueError(f"provenance must be one of {PROVENANCE}, got {provenance!r} and "
+                         f"{alternative['provenance']!r}")
     if cooling is not None and len({len(cooling[k]) for k in COOLING_ARRAYS}) != 1:
         raise ValueError("cooling arrays must be equally long")
     return {
         "type": type, "mass_msun": _maybe(mass_msun), "radius_km": _maybe(radius_km),
         "provenance": provenance, "prescription": prescription, "how": how,
         "alternative": {"prescription": alternative["prescription"], "type": alternative["type"],
-                        "mass_msun": _maybe(alternative["mass_msun"])},
+                        "mass_msun": _maybe(alternative["mass_msun"]),
+                        "radius_km": _maybe(alternative["radius_km"]),
+                        "how": alternative["how"], "provenance": alternative["provenance"]},
         # NaN marks a core mass MIST does not give; JSON has no NaN, so it is exported as null
         **{k: _maybe(None if np.isnan(v) else v) for k, v in (
             ("final_mass_msun", final_mass_msun), ("he_core_mass_msun", he_core_mass_msun),

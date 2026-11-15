@@ -1,6 +1,6 @@
 {
  "meta": {
-  "schema_version": 11,
+  "schema_version": 12,
   "generator": {
    "name": "stellarforge",
    "version": "0.1.0",
@@ -117,7 +117,10 @@
      "alternative": {
       "prescription": "hand-written",
       "type": "white dwarf",
-      "mass_msun": 0.57
+      "mass_msun": 0.57,
+      "radius_km": 8500.0,
+      "how": "Hand-written alternative remnant.",
+      "provenance": "predicted"
      },
      "final_mass_msun": 0.54,
      "he_core_mass_msun": 0.54,
