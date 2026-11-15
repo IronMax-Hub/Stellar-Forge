@@ -373,6 +373,10 @@ dd {
 .result-table {
   border-collapse: collapse;
   font-size: 0.85rem;
+  /* wide tables scroll inside themselves on narrow screens */
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .result-table th,
@@ -424,7 +428,8 @@ dd {
 
 .cell-stats {
   display: grid;
-  grid-template-columns: max-content 1fr;
+  grid-template-columns: max-content minmax(0, 1fr);
+  overflow-wrap: anywhere;
   gap: 0.25rem 1rem;
   margin: 0;
   font-size: 0.9rem;

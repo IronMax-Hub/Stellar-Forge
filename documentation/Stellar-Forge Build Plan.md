@@ -838,6 +838,11 @@ The plan models single stars. The binary stability limits ported from Aion Forge
 
 - **Step 7, frame-time read-out (15 November 2026):** in development mode (`make dev`) a corner read-out (`web/src/FrameTime.tsx`) shows the mean time between animation frames, the frame rate and the worst frame over each second. Production builds leave it out.
 
+- **Step 8, browser check (15 November 2026), partly done:**
+    - **Chromium 156 (the Claude app's built-in browser):** every view, every Experiments tab and the 3D system map open with no error at 1024 px and at 375 px. At 375 px System Timeline scrolled sideways: the Fates table and the star's warnings were too wide. Wide tables now scroll inside themselves, and the stats list wraps long words. After that fix no view is wider than the screen.
+    - **Chrome 157 and Firefox 158, headless, first load only:** Chrome draws Star Builder at 1280 and 375 px. Firefox's screenshot is taken before the tracks arrive, so it shows only the tabs and "Loading tracks…".
+    - **Still to do by hand:** every view in Chrome 157 and Firefox 158, and the frame time on the G210 (Validation). The built-in browser's pane was hidden, which pauses animation, so no frame rate was measured.
+
 **Deferred:** a discovery catalogue of notable results (a pair-instability outcome, a surviving planetary system) waits until the core pipeline works end to end.
 
 **Done when:** every view is reachable; every displayed value opens its provenance; `make data-status` is clean after `make all-data`; the first load takes under 3 seconds locally; the 3D toggle works, including the system view; and both browsers pass (Validation rows 7).
