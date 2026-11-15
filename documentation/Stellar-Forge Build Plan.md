@@ -834,6 +834,8 @@ The plan models single stars. The binary stability limits ported from Aion Forge
 
 - **Step 5, stubs (15 November 2026):** `rendering/aionStubs.ts` is gone. `starColour.ts` takes `Rgb` from `data/types.ts`; the black-hole view declares its own input types. No phase exports surface or atmosphere data, so the copied planet globes (`rendering/planet/`) were deleted, with `systemLayout.ts` and `util/rng.ts`, which only they and the cut parts of `systemView.ts` used; `systemView.ts` keeps only what the 3D view draws. The removals are recorded in `PROVENANCE.md`.
 
+- **Step 6, Physics Chapters (15 November 2026):** a Physics tab (`web/src/PhysicsChapters.tsx`) with seven chapters — where the numbers come from, stars, remnants, experiments, inside the star, planet formation and planets through the star's life — in Aion Forge's card structure (statement, how, source, limits, code), all text new. The text holds no computed values; it points to each file's provenance panel for the values used. Phase 6.2 has a card marked planned, since it is not built.
+
 **Deferred:** a discovery catalogue of notable results (a pair-instability outcome, a surviving planetary system) waits until the core pipeline works end to end.
 
 **Done when:** every view is reachable; every displayed value opens its provenance; `make data-status` is clean after `make all-data`; the first load takes under 3 seconds locally; the 3D toggle works, including the system view; and both browsers pass (Validation rows 7).

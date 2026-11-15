@@ -11,7 +11,7 @@ export interface CurrentStar {
 
 export const SUN_TODAY: CurrentStar = { mass_msun: 1, feh: 0, age_yr: 4.57e9 };
 
-export type View = "star" | "experiments" | "inside" | "planets" | "timeline";
+export type View = "star" | "experiments" | "inside" | "planets" | "timeline" | "physics";
 
 /** What every star-aware view receives. `active` is false while its tab is hidden. */
 export interface StarProps {
