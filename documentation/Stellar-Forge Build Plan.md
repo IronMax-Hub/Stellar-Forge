@@ -836,6 +836,8 @@ The plan models single stars. The binary stability limits ported from Aion Forge
 
 - **Step 6, Physics Chapters (15 November 2026):** a Physics tab (`web/src/PhysicsChapters.tsx`) with seven chapters — where the numbers come from, stars, remnants, experiments, inside the star, planet formation and planets through the star's life — in Aion Forge's card structure (statement, how, source, limits, code), all text new. The text holds no computed values; it points to each file's provenance panel for the values used. Phase 6.2 has a card marked planned, since it is not built.
 
+- **Step 7, frame-time read-out (15 November 2026):** in development mode (`make dev`) a corner read-out (`web/src/FrameTime.tsx`) shows the mean time between animation frames, the frame rate and the worst frame over each second. Production builds leave it out.
+
 **Deferred:** a discovery catalogue of notable results (a pair-instability outcome, a surviving planetary system) waits until the core pipeline works end to end.
 
 **Done when:** every view is reachable; every displayed value opens its provenance; `make data-status` is clean after `make all-data`; the first load takes under 3 seconds locally; the 3D toggle works, including the system view; and both browsers pass (Validation rows 7).

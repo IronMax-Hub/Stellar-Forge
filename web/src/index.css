@@ -624,3 +624,17 @@ button.prov {
     grid-template-columns: 1fr;
   }
 }
+
+/* Phase 7: development-mode frame-time read-out */
+.frame-time {
+  position: fixed;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  z-index: 10;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  background: rgba(10, 11, 18, 0.85);
+  color: #9a9cab;
+  font: 0.75rem "IBM Plex Mono", monospace;
+  pointer-events: none;
+}

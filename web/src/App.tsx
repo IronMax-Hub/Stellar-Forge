@@ -13,6 +13,7 @@ import Experiments from "./Experiments";
 import InsideTheStar from "./InsideTheStar";
 import Planets from "./Planets";
 import PhysicsChapters from "./PhysicsChapters";
+import FrameTime from "./FrameTime";
 import SystemTimeline, { type TimelineTarget } from "./SystemTimeline";
 import ProvTag from "./ProvTag";
 import StarNote from "./StarNote";
@@ -84,6 +85,7 @@ export default function App() {
   }, []);
   return (
     <>
+      {import.meta.env.DEV && <FrameTime />}
       {stale && <p className="stale-data" role="alert">{stale}</p>}
       <nav className="tabs" aria-label="Views">
         <button aria-pressed={view === "star"} onClick={() => show("star")}>Star Builder</button>
